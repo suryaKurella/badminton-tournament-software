@@ -30,8 +30,8 @@ const Navbar = () => {
             onClick={closeMobileMenu}
           >
             <span className="text-2xl">🏸</span>
-            <span className="hidden sm:inline">Badminton Tournament</span>
-            <span className="sm:hidden">Tournament</span>
+            <span className="hidden sm:inline">Poola Kundi Tournament Software</span>
+            <span className="sm:hidden">Poola Kundi</span>
           </Link>
 
           {/* Desktop Navigation */}
