@@ -195,9 +195,19 @@ const getClub = async (req, res) => {
           },
           orderBy: { startDate: 'desc' },
           take: 10,
-          include: {
-            registrations: {
-              select: { id: true },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            startDate: true,
+            endDate: true,
+            location: true,
+            maxParticipants: true,
+            tournamentType: true,
+            format: true,
+            status: true,
+            _count: {
+              select: { registrations: true },
             },
           },
         },

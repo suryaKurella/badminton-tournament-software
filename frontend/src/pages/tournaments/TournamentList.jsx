@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Pencil, LayoutGrid, List, MapPin, Calendar, Users } from 'lucide-react';
+import { Trash2, Pencil, LayoutGrid, List, MapPin, Calendar, Users, Building2 } from 'lucide-react';
 import { tournamentAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -184,13 +184,19 @@ const TournamentList = () => {
               </div>
             </div>
 
-            <div className="flex gap-5 mb-5 flex-wrap">
+            <div className="flex gap-3 mb-4 flex-wrap">
               <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold bg-gray-50 dark:bg-slate-700 px-3 py-1.5 rounded-md">
                 {tournament.tournamentType}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold bg-gray-50 dark:bg-slate-700 px-3 py-1.5 rounded-md">
                 {tournament.format.replace('_', ' ')}
               </p>
+              {tournament.club && (
+                <p className="text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-3 py-1.5 rounded-md flex items-center gap-1.5">
+                  <Building2 size={12} />
+                  {tournament.club.name}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2.5 mb-4">
@@ -279,13 +285,19 @@ const TournamentList = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                     {tournament.tournamentType}
                   </span>
                   <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                     {tournament.format.replace('_', ' ')}
                   </span>
+                  {tournament.club && (
+                    <span className="font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded flex items-center gap-1">
+                      <Building2 size={10} />
+                      {tournament.club.name}
+                    </span>
+                  )}
                 </div>
               </div>
 

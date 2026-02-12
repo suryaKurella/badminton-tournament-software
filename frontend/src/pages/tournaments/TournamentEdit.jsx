@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { tournamentAPI, matchAPI } from '../../services/api';
+import { X, ChevronDown, Search } from 'lucide-react';
+import { tournamentAPI, matchAPI, clubAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Input, Select, Textarea, LoadingSpinner, Button, ConfirmationModal } from '../../components/common';
@@ -23,6 +24,7 @@ const TournamentEdit = () => {
     allowPlayerScoring: true,
     numberOfGroups: '4',
     advancingPerGroup: '2',
+    clubId: '',
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -38,10 +40,54 @@ const TournamentEdit = () => {
     onConfirm: () => {},
   });
 
+  // Club selection state
+  const [clubs, setClubs] = useState([]);
+  const [clubSearch, setClubSearch] = useState('');
+  const [clubDropdownOpen, setClubDropdownOpen] = useState(false);
+  const [selectedClub, setSelectedClub] = useState(null);
+  const clubDropdownRef = useRef(null);
+
   useEffect(() => {
     fetchTournament();
     fetchMatches();
+    fetchClubs();
   }, [id]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (clubDropdownRef.current && !clubDropdownRef.current.contains(event.target)) {
+        setClubDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchClubs = async () => {
+    try {
+      const response = await clubAPI.getAll();
+      setClubs(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching clubs:', error);
+    }
+  };
+
+  const filteredClubs = clubs.filter(club =>
+    club.name.toLowerCase().includes(clubSearch.toLowerCase())
+  );
+
+  const handleClubSelect = (club) => {
+    setSelectedClub(club);
+    setFormData(prev => ({ ...prev, clubId: club.id }));
+    setClubDropdownOpen(false);
+    setClubSearch('');
+  };
+
+  const handleClubClear = () => {
+    setSelectedClub(null);
+    setFormData(prev => ({ ...prev, clubId: '' }));
+    setClubSearch('');
+  };
 
   const fetchMatches = async () => {
     try {
@@ -83,7 +129,13 @@ const TournamentEdit = () => {
         allowPlayerScoring: tournamentData.allowPlayerScoring !== false, // Default to true if not set
         numberOfGroups: String(tournamentData.numberOfGroups || 4),
         advancingPerGroup: String(tournamentData.advancingPerGroup || 2),
+        clubId: tournamentData.clubId || '',
       });
+
+      // Set selected club if tournament has a club
+      if (tournamentData.club) {
+        setSelectedClub(tournamentData.club);
+      }
     } catch (error) {
       console.error('Error fetching tournament:', error);
       setError('Failed to load tournament details');
@@ -334,7 +386,7 @@ const TournamentEdit = () => {
         </div>
 
         {/* Scoring Permissions Section */}
-        <div className="mb-8 p-4 glass-surface rounded-lg border border-border">
+        <div className="mb-6 p-4 glass-surface rounded-lg border border-border">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
             Scoring Permissions
           </h3>
@@ -353,6 +405,80 @@ const TournamentEdit = () => {
             <option value="anyone">Anyone (All logged-in users)</option>
             <option value="admins">Organizers Only (Admins and tournament organizers)</option>
           </Select>
+        </div>
+
+        {/* Club Selection */}
+        <div className="mb-8">
+          <label className="block mb-2 font-semibold text-gray-900 dark:text-white text-sm">
+            Club (Optional)
+          </label>
+          <div className="relative" ref={clubDropdownRef}>
+            {selectedClub ? (
+              <div className="flex items-center justify-between w-full px-4 py-3 border-2 border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                <span className="text-gray-900 dark:text-white">{selectedClub.name}</span>
+                <button
+                  type="button"
+                  onClick={handleClubClear}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-slate-600 rounded-full transition-colors"
+                >
+                  <X size={16} className="text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-between w-full px-4 py-3 border-2 border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+                onClick={() => setClubDropdownOpen(!clubDropdownOpen)}
+              >
+                <span className="text-gray-400 dark:text-gray-500">Select a club...</span>
+                <ChevronDown size={20} className="text-gray-400" />
+              </div>
+            )}
+
+            {clubDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border-2 border-gray-300 dark:border-slate-600 rounded-md shadow-lg max-h-60 overflow-hidden">
+                <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={clubSearch}
+                      onChange={(e) => setClubSearch(e.target.value)}
+                      placeholder="Search clubs..."
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto max-h-48">
+                  {filteredClubs.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      {clubs.length === 0 ? 'No clubs available' : 'No clubs match your search'}
+                    </div>
+                  ) : (
+                    filteredClubs.map(club => (
+                      <div
+                        key={club.id}
+                        className="px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                        onClick={() => handleClubSelect(club)}
+                      >
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {club.name}
+                        </div>
+                        {club.description && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {club.description}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Optionally associate this tournament with a club. Club members will see it in their club page.
+          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">

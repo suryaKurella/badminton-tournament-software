@@ -63,6 +63,12 @@ const getAllTournaments = async (req, res) => {
             registrationStatus: true,
           },
         },
+        club: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       orderBy: {
         [sortBy]: sortOrder,
@@ -107,6 +113,13 @@ const getTournament = async (req, res) => {
             username: true,
             fullName: true,
             email: true,
+          },
+        },
+        club: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
           },
         },
         registrations: {
@@ -239,6 +252,7 @@ const createTournament = async (req, res) => {
       status,
       numberOfGroups,
       advancingPerGroup,
+      clubId,
     } = req.body;
 
     console.log('Extracted status:', status);
@@ -267,6 +281,11 @@ const createTournament = async (req, res) => {
       tournamentData.advancingPerGroup = advancingPerGroup ? parseInt(advancingPerGroup) : 2;
     }
 
+    // Add club association if provided
+    if (clubId) {
+      tournamentData.clubId = clubId;
+    }
+
     const tournament = await prisma.tournament.create({
       data: tournamentData,
       include: {
@@ -275,6 +294,12 @@ const createTournament = async (req, res) => {
             id: true,
             username: true,
             fullName: true,
+          },
+        },
+        club: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -368,6 +393,11 @@ const updateTournament = async (req, res) => {
       updateData.advancingPerGroup = parseInt(updateData.advancingPerGroup);
     }
 
+    // Handle clubId - convert empty string to null to clear association
+    if (updateData.clubId === '') {
+      updateData.clubId = null;
+    }
+
     // Set startedAt timestamp when tournament becomes active
     // Also reset pause-related fields to start fresh
     if (updateData.status === 'ACTIVE' && tournament.status !== 'ACTIVE') {
@@ -401,6 +431,12 @@ const updateTournament = async (req, res) => {
             id: true,
             username: true,
             fullName: true,
+          },
+        },
+        club: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
