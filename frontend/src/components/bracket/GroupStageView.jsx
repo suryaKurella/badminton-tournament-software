@@ -141,12 +141,15 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                   </thead>
                   <tbody>
                     {groupTeams.map((stat, index) => {
-                      const isAdvancing = index < advancingCount;
+                      const isInQualifyingPosition = index < advancingCount;
+                      // Only show "Q" after at least one match has been played
+                      const hasPlayedMatches = stat.matchesPlayed > 0;
+                      const showQualified = isInQualifyingPosition && hasPlayedMatches;
                       return (
                         <tr
                           key={stat.team.id}
                           className={`border-b border-border/50 ${
-                            isAdvancing
+                            showQualified
                               ? 'bg-green-50 dark:bg-green-900/10'
                               : ''
                           }`}
@@ -154,7 +157,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                           <td className="py-2 px-3">
                             <span
                               className={`font-semibold ${
-                                isAdvancing ? 'text-green-600 dark:text-green-400' : 'text-gray-500'
+                                showQualified ? 'text-green-600 dark:text-green-400' : 'text-gray-500'
                               }`}
                             >
                               {index + 1}
@@ -162,7 +165,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                           </td>
                           <td className="py-2 px-3 font-medium text-gray-900 dark:text-white text-sm">
                             {getTeamName(stat.team)}
-                            {isAdvancing && (
+                            {showQualified && (
                               <span className="ml-2 text-xs text-green-600 dark:text-green-400">Q</span>
                             )}
                           </td>
@@ -286,7 +289,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
 
       {/* Legend */}
       <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-4">
-        <span><span className="text-green-600 dark:text-green-400 font-semibold">Q</span> = Qualified for knockout</span>
+        <span><span className="text-green-600 dark:text-green-400 font-semibold">Q</span> = Currently qualifying for knockout</span>
         <span>P = Played | W = Wins | L = Losses | +/- = Point Differential</span>
       </div>
     </div>

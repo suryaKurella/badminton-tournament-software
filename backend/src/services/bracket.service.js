@@ -450,22 +450,46 @@ async function generateGroupStageBracket(tournamentId, participants, seedingMeth
       teamUpdates.push({ teamId: team.id, groupName });
     });
 
-    // Generate round robin for this group
-    let matchCount = 0;
-    const matchesPerRound = Math.floor(groupSize / 2);
+    // Generate round robin for this group using circle method
+    // This ensures each player plays exactly once per round
+    const participants = [...groupParticipants];
+    const numParticipants = participants.length;
 
-    for (let i = 0; i < groupSize; i++) {
-      for (let j = i + 1; j < groupSize; j++) {
-        const team1 = groupParticipants[i];
-        const team2 = groupParticipants[j];
+    // If odd number, add a "bye" placeholder
+    if (numParticipants % 2 === 1) {
+      participants.push(null); // bye
+    }
 
-        const roundNumber = Math.floor(matchCount / Math.max(matchesPerRound, 1)) + 1;
-        const position = matchCount % Math.max(matchesPerRound, 1);
+    const n = participants.length;
+    const numRounds = n - 1;
+    const matchesPerRound = n / 2;
+
+    // Circle method: fix first participant, rotate the rest
+    for (let round = 0; round < numRounds; round++) {
+      for (let match = 0; match < matchesPerRound; match++) {
+        const home = match === 0 ? 0 : (n - 1 - ((round + match - 1) % (n - 1)));
+        const away = (round + match) % (n - 1) + 1;
+
+        // Simplified pairing using rotation
+        let homeIdx, awayIdx;
+        if (match === 0) {
+          homeIdx = 0;
+          awayIdx = (round % (n - 1)) + 1;
+        } else {
+          homeIdx = ((round + match) % (n - 1)) + 1;
+          awayIdx = ((round + n - 1 - match) % (n - 1)) + 1;
+        }
+
+        const team1 = participants[homeIdx];
+        const team2 = participants[awayIdx];
+
+        // Skip if either team is a bye (null)
+        if (!team1 || !team2) continue;
 
         const node = {
           tournamentId,
-          roundNumber,
-          position,
+          roundNumber: round + 1,
+          position: match,
           bracketType,
         };
 
@@ -473,11 +497,10 @@ async function generateGroupStageBracket(tournamentId, participants, seedingMeth
           node,
           team1Id: team1.id,
           team2Id: team2.id,
-          round: `Group ${groupName} - Round ${roundNumber}`,
+          round: `Group ${groupName} - Round ${round + 1}`,
         });
 
         bracketNodes.push(node);
-        matchCount++;
       }
     }
   }
@@ -775,6 +798,7 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
     }
 
     // Create bracket nodes and matches in transaction
+    // Increase timeout to 30 seconds for large tournaments
     const result = await prisma.$transaction(async (tx) => {
       // For GROUP_KNOCKOUT, update team group assignments first
       if (bracketData.teamUpdates) {
@@ -848,7 +872,7 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
       });
 
       return { nodes: createdNodes };
-    });
+    }, { timeout: 30000 }); // 30 second timeout for large tournaments
 
     return {
       success: true,
@@ -1143,7 +1167,7 @@ async function completeGroupStage(tournamentId) {
       }
 
       return { nodes: createdNodes, qualifiedTeams: knockoutData.knockoutParticipants };
-    });
+    }, { timeout: 30000 }); // 30 second timeout
 
     return {
       success: true,

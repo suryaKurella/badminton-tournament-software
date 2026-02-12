@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { tournamentAPI, matchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -28,6 +28,7 @@ const TournamentDetails = () => {
     onConfirm: () => {},
   });
   const [expandedMatchId, setExpandedMatchId] = useState(null);
+  const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const [showCompletedMatches, setShowCompletedMatches] = useState(false);
 
   useEffect(() => {
@@ -598,13 +599,23 @@ const TournamentDetails = () => {
 
       {tournament.registrations && tournament.registrations.length > 0 && (
         <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 sm:mb-4">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-              Registered Participants ({tournament.registrations.length})
-            </h2>
+          <div
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer"
+            onClick={() => setParticipantsExpanded(!participantsExpanded)}
+          >
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                Registered Participants ({tournament.registrations.length})
+              </h2>
+              {participantsExpanded ? (
+                <ChevronUp className="w-5 h-5 text-gray-500" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-500" />
+              )}
+            </div>
             {canManageStatus && tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING').length > 0 && (
               <button
-                onClick={handleApproveAllPending}
+                onClick={(e) => { e.stopPropagation(); handleApproveAllPending(); }}
                 className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
               >
                 <span>✓</span>
@@ -612,7 +623,8 @@ const TournamentDetails = () => {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:gap-4">
+          {participantsExpanded && (
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-3 sm:mt-4">
             {tournament.registrations.map((reg) => (
               <div
                 key={reg.id}
@@ -697,7 +709,8 @@ const TournamentDetails = () => {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

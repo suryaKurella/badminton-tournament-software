@@ -85,7 +85,7 @@ export const tournamentAPI = {
 
 // Match APIs
 export const matchAPI = {
-  getByTournament: (tournamentId) => api.get(`/matches/tournament/${tournamentId}`),
+  getByTournament: (tournamentId, limit = 100) => api.get(`/matches/tournament/${tournamentId}?limit=${limit}`),
   getById: (id) => api.get(`/matches/${id}`),
   create: (data) => api.post('/matches', data),
   walkover: (id, data) => api.put(`/matches/${id}/walkover`, data),

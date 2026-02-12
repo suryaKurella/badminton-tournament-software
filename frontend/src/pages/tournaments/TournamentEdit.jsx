@@ -314,9 +314,12 @@ const TournamentEdit = () => {
                 disabled={tournament?.bracketGenerated}
               >
                 <option value="2">2 Groups (A, B)</option>
+                <option value="3">3 Groups (A, B, C)</option>
                 <option value="4">4 Groups (A, B, C, D)</option>
-                <option value="6">6 Groups</option>
-                <option value="8">8 Groups</option>
+                <option value="5">5 Groups (A, B, C, D, E)</option>
+                <option value="6">6 Groups (A, B, C, D, E, F)</option>
+                <option value="7">7 Groups (A-G)</option>
+                <option value="8">8 Groups (A-H)</option>
               </Select>
 
               <Select
