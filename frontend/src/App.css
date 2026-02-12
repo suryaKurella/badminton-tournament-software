@@ -138,11 +138,13 @@
     @apply active:scale-95 transition-transform duration-100;
   }
 
-  /* Glass morphism effects */
+  /* Glass morphism effects - GPU optimized to prevent flickering */
   .glass {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     @apply bg-white/70 dark:bg-gray-900/70;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   /* Glass Card - Main card glass effect with borders and shadows */
@@ -154,6 +156,10 @@
     border: 0.5px solid rgba(200, 200, 200, 0.3);
     @apply transition-all duration-300;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .dark .glass-card {
@@ -183,6 +189,10 @@
     border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
     @apply transition-all duration-300;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .dark .glass-nav {
@@ -200,6 +210,10 @@
     border: 0.5px solid rgba(255, 255, 255, 0.2);
     @apply transition-all duration-300;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .dark .glass-modal {

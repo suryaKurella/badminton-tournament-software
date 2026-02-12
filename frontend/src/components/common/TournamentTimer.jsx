@@ -129,7 +129,7 @@ const TournamentTimer = ({ startedAt, startDate, status, isPaused, pausedAt, tot
         {isPaused ? (
           <Pause size={14} className="text-yellow-600 dark:text-yellow-500" />
         ) : (
-          <Clock size={14} className="text-brand-green animate-pulse" />
+          <Clock size={14} className="text-brand-green" />
         )}
         <span className={`text-sm font-mono font-semibold ${
           isPaused ? 'text-yellow-600 dark:text-yellow-500' : 'text-brand-green'
@@ -149,7 +149,7 @@ const TournamentTimer = ({ startedAt, startDate, status, isPaused, pausedAt, tot
       {isPaused ? (
         <Pause size={20} className="text-yellow-600 dark:text-yellow-500" />
       ) : (
-        <Clock size={20} className="text-brand-green animate-pulse" />
+        <Clock size={20} className="text-brand-green" />
       )}
       <div className="flex flex-col">
         <span className="text-xs text-muted font-medium">
