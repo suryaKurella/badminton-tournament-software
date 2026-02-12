@@ -26,7 +26,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link
             to="/tournaments"
-            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-brand-blue hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-white hover:opacity-80 transition-opacity"
             onClick={closeMobileMenu}
           >
             <span className="text-2xl">🏸</span>
