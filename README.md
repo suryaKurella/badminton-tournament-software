@@ -15,6 +15,27 @@ A full-featured badminton tournament management system with real-time scoring, b
 - **Player Statistics** - ELO-based ranking system and comprehensive stats
 - **Real-time Updates** - Socket.IO powered live updates across all clients
 - **Role-based Access** - Multiple user roles with different permissions
+- **Installable PWA** - Install as a native app on mobile and desktop devices
+
+## Install as App (PWA)
+
+This app can be installed on your device for a native app-like experience.
+
+### Mobile (iOS/Android)
+1. Open the website in your browser
+2. **iOS:** Tap the Share button → "Add to Home Screen"
+3. **Android:** Tap the menu (⋮) → "Add to Home Screen" or "Install App"
+
+### Desktop (Chrome/Edge)
+1. Visit the website
+2. Click the install icon (⊕) in the address bar
+3. Or use menu → "Install Poola Kundi..."
+
+### Features when installed:
+- Runs in standalone mode (no browser UI)
+- Faster loading with offline caching
+- Push notifications support (coming soon)
+- Native app icon on home screen
 
 ## Tournament Formats
 
