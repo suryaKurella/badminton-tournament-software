@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Pencil } from 'lucide-react';
+import { Trash2, Pencil, LayoutGrid, List, MapPin, Calendar, Users } from 'lucide-react';
 import { tournamentAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -13,6 +13,10 @@ const TournamentList = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [viewMode, setViewMode] = useState(() => {
+    // Persist view preference in localStorage
+    return localStorage.getItem('tournamentViewMode') || 'card';
+  });
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: '',
@@ -108,7 +112,7 @@ const TournamentList = () => {
         )}
       </div>
 
-      <div className="mb-6 sm:mb-8 flex gap-4 items-center">
+      <div className="mb-6 sm:mb-8 flex flex-wrap gap-4 items-center justify-between">
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -120,6 +124,38 @@ const TournamentList = () => {
           <option value="ACTIVE">Active</option>
           <option value="COMPLETED">Completed</option>
         </select>
+
+        {/* View Toggle */}
+        <div className="flex gap-1 glass-surface p-1">
+          <button
+            onClick={() => {
+              setViewMode('card');
+              localStorage.setItem('tournamentViewMode', 'card');
+            }}
+            className={`p-2 rounded-lg transition-all ${
+              viewMode === 'card'
+                ? 'bg-brand-blue text-white'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+            title="Card view"
+          >
+            <LayoutGrid size={18} />
+          </button>
+          <button
+            onClick={() => {
+              setViewMode('list');
+              localStorage.setItem('tournamentViewMode', 'list');
+            }}
+            className={`p-2 rounded-lg transition-all ${
+              viewMode === 'list'
+                ? 'bg-brand-blue text-white'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+            title="List view"
+          >
+            <List size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Split tournaments into active and completed */}
@@ -127,6 +163,7 @@ const TournamentList = () => {
         const activeTournaments = tournaments.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
         const completedTournaments = tournaments.filter(t => t.status === 'COMPLETED' || t.status === 'CANCELLED');
 
+        // Card View
         const renderTournamentCard = (tournament) => (
           <Link
             to={`/tournaments/${tournament.id}`}
@@ -221,22 +258,122 @@ const TournamentList = () => {
           </Link>
         );
 
+        // List View
+        const renderTournamentListItem = (tournament) => (
+          <Link
+            to={`/tournaments/${tournament.id}`}
+            key={tournament.id}
+            className="glass-card p-4 block hover:scale-[1.01] transition-transform"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+              {/* Name and Status */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white truncate">
+                    {tournament.name}
+                  </h3>
+                  <StatusBadge status={tournament.status} />
+                  {tournament.status === 'OPEN' && tournament.registrationClosed && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                      🔒
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                    {tournament.tournamentType}
+                  </span>
+                  <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                    {tournament.format.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Info columns */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-6 text-sm">
+                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                  <MapPin size={14} className="text-gray-400" />
+                  <span className="truncate max-w-[120px]">{tournament.location}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                  <Calendar size={14} className="text-gray-400" />
+                  <span>{formatDate(tournament.startDate)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                  <Users size={14} className="text-gray-400" />
+                  <span>{tournament.registrations?.length || 0}/{tournament.maxParticipants}</span>
+                </div>
+
+                {/* Timer for active tournaments */}
+                {(tournament.status === 'ACTIVE' || tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+                  <TournamentTimer
+                    startedAt={tournament.startedAt}
+                    startDate={tournament.startDate}
+                    status={tournament.status}
+                    isPaused={tournament.isPaused}
+                    pausedAt={tournament.pausedAt}
+                    totalPausedTime={tournament.totalPausedTime}
+                    compact
+                  />
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 sm:ml-2">
+                {isOrganizer && (
+                  <Link
+                    to={`/tournaments/${tournament.id}/edit`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                    title="Edit tournament"
+                  >
+                    <Pencil size={14} />
+                  </Link>
+                )}
+                {isRoot && (
+                  <IconButton
+                    variant="error"
+                    onClick={(e) => handleDeleteClick(e, tournament.id, tournament.name)}
+                    title="Delete tournament"
+                    className="!p-1.5"
+                  >
+                    <Trash2 size={14} />
+                  </IconButton>
+                )}
+              </div>
+            </div>
+          </Link>
+        );
+
+        const renderTournaments = (tournamentList) => {
+          if (viewMode === 'list') {
+            return (
+              <div className="flex flex-col gap-3">
+                {tournamentList.map(renderTournamentListItem)}
+              </div>
+            );
+          }
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tournamentList.map(renderTournamentCard)}
+            </div>
+          );
+        };
+
         return (
           <>
             {/* Active Tournaments */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeTournaments.length === 0 && completedTournaments.length === 0 ? (
-                <p className="text-center py-16 col-span-full text-gray-500 dark:text-gray-400 text-lg font-medium">
-                  No tournaments found
-                </p>
-              ) : activeTournaments.length === 0 ? (
-                <p className="text-center py-8 col-span-full text-gray-500 dark:text-gray-400">
-                  No active tournaments
-                </p>
-              ) : (
-                activeTournaments.map(renderTournamentCard)
-              )}
-            </div>
+            {activeTournaments.length === 0 && completedTournaments.length === 0 ? (
+              <p className="text-center py-16 text-gray-500 dark:text-gray-400 text-lg font-medium">
+                No tournaments found
+              </p>
+            ) : activeTournaments.length === 0 ? (
+              <p className="text-center py-8 text-gray-500 dark:text-gray-400">
+                No active tournaments
+              </p>
+            ) : (
+              renderTournaments(activeTournaments)
+            )}
 
             {/* Completed Tournaments - Collapsible */}
             {completedTournaments.length > 0 && (
@@ -260,8 +397,8 @@ const TournamentList = () => {
                 </button>
 
                 {showCompleted && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                    {completedTournaments.map(renderTournamentCard)}
+                  <div className="mt-4">
+                    {renderTournaments(completedTournaments)}
                   </div>
                 )}
               </div>
