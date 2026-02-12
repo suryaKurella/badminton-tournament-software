@@ -19,6 +19,12 @@ const MatchDetails = lazy(() => import('./pages/matches/MatchDetails'));
 const LiveScoring = lazy(() => import('./pages/matches/LiveScoring'));
 const Leaderboard = lazy(() => import('./pages/Leaderboard'));
 
+// Club pages
+const ClubList = lazy(() => import('./pages/clubs/ClubList'));
+const ClubDetails = lazy(() => import('./pages/clubs/ClubDetails'));
+const ClubCreate = lazy(() => import('./pages/clubs/ClubCreate'));
+const ClubEdit = lazy(() => import('./pages/clubs/ClubEdit'));
+
 import './App.css';
 
 // Loading component
@@ -91,6 +97,26 @@ function App() {
 
                     {/* Leaderboard route */}
                     <Route path="/leaderboard" element={<Leaderboard />} />
+
+                    {/* Club routes */}
+                    <Route path="/clubs" element={<ClubList />} />
+                    <Route
+                      path="/clubs/create"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <ClubCreate />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/clubs/:id" element={<ClubDetails />} />
+                    <Route
+                      path="/clubs/:id/edit"
+                      element={
+                        <ProtectedRoute>
+                          <ClubEdit />
+                        </ProtectedRoute>
+                      }
+                    />
 
                     {/* 404 */}
                     <Route path="*" element={<div className="error">Page not found</div>} />

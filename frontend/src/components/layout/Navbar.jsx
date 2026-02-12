@@ -48,6 +48,12 @@ const Navbar = () => {
             >
               Leaderboard
             </Link>
+            <Link
+              to="/clubs"
+              className="text-primary hover:text-brand-blue font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
+            >
+              Clubs
+            </Link>
 
             {/* Dark Mode Toggle */}
             <button
@@ -144,6 +150,13 @@ const Navbar = () => {
                 onClick={closeMobileMenu}
               >
                 Leaderboard
+              </Link>
+              <Link
+                to="/clubs"
+                className="text-primary hover:text-brand-blue font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
+                onClick={closeMobileMenu}
+              >
+                Clubs
               </Link>
 
               {isAuthenticated ? (

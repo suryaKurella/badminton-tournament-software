@@ -26,6 +26,10 @@ model User {
   playerStatistics   PlayerStatistics?
   matchEvents        MatchEvent[]
 
+  // Club relations
+  createdClubs       Club[]           @relation("ClubCreator")
+  clubMemberships    ClubMembership[]
+
   @@index([role])
   @@index([createdAt])
   @@map("users")
@@ -76,13 +80,19 @@ model Tournament {
   advancingPerGroup  Int?               @default(2) @map("advancing_per_group")
   groupStageComplete Boolean            @default(false) @map("group_stage_complete")
 
+  // Club association (optional)
+  clubId             String?            @map("club_id")
+  membersOnly        Boolean            @default(false) @map("members_only")
+
   // Relations
   createdBy      User           @relation("TournamentCreator", fields: [createdById], references: [id])
   registrations  Registration[]
   matches        Match[]
   teams          Team[]
+  club           Club?          @relation("ClubTournaments", fields: [clubId], references: [id])
 
   @@index([status])
+  @@index([clubId])
   @@index([tournamentType])
   @@index([startDate])
   @@index([createdById])
@@ -376,4 +386,64 @@ enum MatchEventType {
   UNDO
   TIMEOUT
   INJURY_BREAK
+}
+
+// Club model
+model Club {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  visibility  ClubVisibility  @default(PUBLIC)
+  createdById String          @map("created_by_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy   User            @relation("ClubCreator", fields: [createdById], references: [id])
+  memberships ClubMembership[]
+  tournaments Tournament[]    @relation("ClubTournaments")
+
+  @@index([visibility])
+  @@index([createdById])
+  @@index([name])
+  @@map("clubs")
+}
+
+enum ClubVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+// Club Membership model - junction table with metadata
+model ClubMembership {
+  id        String               @id @default(uuid())
+  clubId    String               @map("club_id")
+  userId    String               @map("user_id")
+  role      ClubMemberRole       @default(MEMBER)
+  status    ClubMembershipStatus @default(PENDING)
+  joinedAt  DateTime?            @map("joined_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  club      Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, userId])
+  @@index([clubId])
+  @@index([userId])
+  @@index([status])
+  @@map("club_memberships")
+}
+
+enum ClubMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ClubMembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

@@ -103,4 +103,23 @@ export const userAPI = {
   delete: (id) => api.delete(`/users/${id}`),
 };
 
+// Club APIs
+export const clubAPI = {
+  getAll: (params) => api.get('/clubs', { params }),
+  getById: (id) => api.get(`/clubs/${id}`),
+  getMyClubs: () => api.get('/clubs/my-clubs'),
+  create: (data) => api.post('/clubs', data),
+  update: (id, data) => api.put(`/clubs/${id}`, data),
+  delete: (id) => api.delete(`/clubs/${id}`),
+  // Membership
+  join: (id) => api.post(`/clubs/${id}/join`),
+  leave: (id) => api.delete(`/clubs/${id}/leave`),
+  approveMembership: (clubId, membershipId) => api.put(`/clubs/${clubId}/memberships/${membershipId}/approve`),
+  rejectMembership: (clubId, membershipId) => api.put(`/clubs/${clubId}/memberships/${membershipId}/reject`),
+  removeMember: (clubId, membershipId) => api.delete(`/clubs/${clubId}/memberships/${membershipId}`),
+  updateMemberRole: (clubId, membershipId, role) => api.put(`/clubs/${clubId}/memberships/${membershipId}/role`, { role }),
+  // Club tournaments
+  getTournaments: (id, params) => api.get(`/clubs/${id}/tournaments`, { params }),
+};
+
 export default api;

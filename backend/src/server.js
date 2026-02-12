@@ -22,6 +22,7 @@ const tournamentRoutes = require('./routes/tournament.routes');
 const matchRoutes = require('./routes/match.routes');
 const userRoutes = require('./routes/user.routes');
 const statisticsRoutes = require('./routes/statistics.routes');
+const clubRoutes = require('./routes/club.routes');
 
 // Initialize Express app
 const app = express();
@@ -115,6 +116,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/clubs', clubRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
