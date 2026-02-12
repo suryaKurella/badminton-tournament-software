@@ -271,8 +271,8 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
         })}
       </div>
 
-      {/* Knockout Stage Preview */}
-      {standings.groupStageComplete && (
+      {/* Knockout Stage Preview - Hide when tournament is complete (winner is known) */}
+      {standings.groupStageComplete && tournament.status !== 'COMPLETED' && (
         <div className="glass-card p-6">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Trophy className="text-yellow-500" size={20} />
