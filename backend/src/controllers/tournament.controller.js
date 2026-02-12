@@ -17,14 +17,25 @@ const getAllTournaments = async (req, res) => {
     } = req.query;
 
     const where = {};
-    if (status) where.status = status;
     if (type) where.tournamentType = type;
     if (format) where.format = format;
 
     // Hide DRAFT tournaments from regular players
     const isOrganizer = req.user && (req.user.role === 'ROOT' || req.user.role === 'ADMIN' || req.user.role === 'ORGANIZER');
-    if (!isOrganizer) {
-      where.status = { not: 'DRAFT' };
+
+    if (status) {
+      // If a specific status is requested
+      if (!isOrganizer && status === 'DRAFT') {
+        // Non-organizers can't filter by DRAFT
+        where.status = { not: 'DRAFT' };
+      } else {
+        where.status = status;
+      }
+    } else {
+      // No status filter - just hide DRAFT from non-organizers
+      if (!isOrganizer) {
+        where.status = { not: 'DRAFT' };
+      }
     }
 
     const pageNum = parseInt(page);
