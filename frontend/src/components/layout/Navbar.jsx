@@ -38,19 +38,19 @@ const Navbar = () => {
           <div className="hidden md:flex gap-4 lg:gap-6 items-center">
             <Link
               to="/tournaments"
-              className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
+              className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
             >
               Tournaments
             </Link>
             <Link
               to="/leaderboard"
-              className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
+              className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
             >
               Leaderboard
             </Link>
             <Link
               to="/clubs"
-              className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
+              className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface"
             >
               Clubs
             </Link>
@@ -84,7 +84,7 @@ const Navbar = () => {
               <div className="flex gap-3 items-center">
                 <Link
                   to="/login"
-                  className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium transition-colors px-4 py-2"
+                  className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium transition-colors px-4 py-2"
                 >
                   Login
                 </Link>
@@ -139,21 +139,21 @@ const Navbar = () => {
             <div className="flex flex-col gap-2">
               <Link
                 to="/tournaments"
-                className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
+                className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
                 onClick={closeMobileMenu}
               >
                 Tournaments
               </Link>
               <Link
                 to="/leaderboard"
-                className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
+                className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
                 onClick={closeMobileMenu}
               >
                 Leaderboard
               </Link>
               <Link
                 to="/clubs"
-                className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
+                className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
                 onClick={closeMobileMenu}
               >
                 Clubs
@@ -176,7 +176,7 @@ const Navbar = () => {
                 <>
                   <Link
                     to="/login"
-                    className="text-primary hover:text-brand-blue dark:hover:text-blue-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
+                    className="text-primary hover:text-brand-green dark:hover:text-green-400 font-medium py-2.5 px-3 rounded-lg hover:bg-light-surface dark:hover:bg-dark-surface transition-all"
                     onClick={closeMobileMenu}
                   >
                     Login
