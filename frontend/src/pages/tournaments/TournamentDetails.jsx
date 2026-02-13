@@ -880,8 +880,9 @@ const TournamentDetails = () => {
         // Render a match card
         const renderMatchCard = (match) => {
           const isExpanded = expandedMatchId === match.id;
-          const team1Name = match.team1.player1.fullName || match.team1.player1.username;
-          const team2Name = match.team2.player1.fullName || match.team2.player1.username;
+          // Use teamName for DOUBLES (contains both players), or player1 name for SINGLES
+          const team1Name = match.team1?.teamName || match.team1?.player1?.fullName || match.team1?.player1?.username || 'TBD';
+          const team2Name = match.team2?.teamName || match.team2?.player1?.fullName || match.team2?.player1?.username || 'TBD';
           const winnerName = match.winnerId === match.team1Id ? team1Name : team2Name;
           const team1Games = parseScore(match.team1Score);
           const team2Games = parseScore(match.team2Score);
@@ -918,16 +919,10 @@ const TournamentDetails = () => {
                 <div className="flex items-center justify-center gap-2 sm:gap-4 text-sm sm:text-base">
                   <div className={`flex-1 text-right font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team1Id ? 'text-brand-green' : 'text-gray-900 dark:text-white'}`}>
                     <span className="block sm:inline">{team1Name}</span>
-                    {match.team1.player2 && match.team1.player2.id !== match.team1.player1.id && (
-                      <span className="block sm:inline"> & {match.team1.player2.fullName || match.team1.player2.username}</span>
-                    )}
                   </div>
                   <div className="px-2 sm:px-4 py-1 bg-gray-200 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-gray-900 dark:text-white">VS</div>
                   <div className={`flex-1 text-left font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id ? 'text-brand-green' : 'text-gray-900 dark:text-white'}`}>
                     <span className="block sm:inline">{team2Name}</span>
-                    {match.team2.player2 && match.team2.player2.id !== match.team2.player1.id && (
-                      <span className="block sm:inline"> & {match.team2.player2.fullName || match.team2.player2.username}</span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1009,6 +1004,30 @@ const TournamentDetails = () => {
           );
         };
 
+        // Helper to render matches grouped by round with borders
+        const renderMatchesGroupedByRound = (matchList) => {
+          // Group matches by round
+          const groupedByRound = matchList.reduce((acc, match) => {
+            const round = match.round;
+            if (!acc[round]) acc[round] = [];
+            acc[round].push(match);
+            return acc;
+          }, {});
+
+          return Object.entries(groupedByRound).map(([round, roundMatches], idx) => (
+            <div key={round} className={`${idx > 0 ? 'mt-6' : ''}`}>
+              <div className="border-2 border-brand-green rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-brand-green mb-3 pb-2 border-b border-brand-green/30">
+                  {round}
+                </h3>
+                <div className="space-y-3">
+                  {roundMatches.map((match) => renderMatchCard(match))}
+                </div>
+              </div>
+            </div>
+          ));
+        };
+
         return (
           <div className="space-y-4 sm:space-y-6">
             {/* Active/Upcoming Matches */}
@@ -1018,7 +1037,7 @@ const TournamentDetails = () => {
                   Matches ({activeMatches.length})
                 </h2>
                 <div className="space-y-4">
-                  {activeMatches.map(renderMatchCard)}
+                  {renderMatchesGroupedByRound(activeMatches)}
                 </div>
               </div>
             )}
@@ -1047,7 +1066,7 @@ const TournamentDetails = () => {
                 {showCompletedMatches && (
                   <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-200 dark:border-slate-600">
                     <div className="space-y-4 mt-4">
-                      {completedMatches.map(renderMatchCard)}
+                      {renderMatchesGroupedByRound(completedMatches)}
                     </div>
                   </div>
                 )}

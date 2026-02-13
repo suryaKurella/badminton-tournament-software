@@ -706,6 +706,42 @@ async function generateKnockoutFromGroups(tournamentId) {
     }
   });
 
+  // Process byes - create matches for subsequent rounds where bye teams advance
+  // This handles the case where 5 teams qualify and 3 get byes
+  const processedRounds = new Set();
+  for (let round = 1; round < numRounds; round++) {
+    const roundNodes = bracketNodes.filter(n => n.roundNumber === round);
+    const nextRoundNodes = bracketNodes.filter(n => n.roundNumber === round + 1);
+
+    for (const nextNode of nextRoundNodes) {
+      // Find the two nodes that feed into this next node
+      const feedingNodes = roundNodes.filter(n => {
+        const nextRoundPosition = Math.floor(n.position / 2);
+        return nextRoundPosition === nextNode.position;
+      });
+
+      if (feedingNodes.length !== 2) continue;
+
+      // Check if either or both are byes
+      const byeTeams = feedingNodes.filter(n => n.byeTeamId).map(n => n.byeTeamId);
+      const matchNodes = feedingNodes.filter(n => !n.byeTeamId);
+
+      if (byeTeams.length === 2) {
+        // Both are byes - create a match between them for the next round
+        matchesToCreate.push({
+          node: nextNode,
+          team1Id: byeTeams[0],
+          team2Id: byeTeams[1],
+          round: getRoundName(round + 1, numRounds),
+        });
+      } else if (byeTeams.length === 1 && matchNodes.length === 1) {
+        // One bye, one match - the bye team advances and waits for match winner
+        // Create a placeholder match for the next round with the bye team
+        nextNode.byeAdvanceTeamId = byeTeams[0];
+      }
+    }
+  }
+
   return { bracketNodes, matchesToCreate, knockoutParticipants };
 }
 
@@ -763,6 +799,74 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
           });
         })
       );
+    }
+
+    // If doubles/mixed tournament and no teams, create teams from registrations with partners
+    if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length === 0) {
+      // Get registrations that have partners
+      const pairedRegistrations = tournament.registrations.filter(reg => reg.partnerId);
+      const processedUserIds = new Set();
+      const teamsToCreate = [];
+
+      for (const reg of pairedRegistrations) {
+        // Skip if already processed (either as player1 or player2)
+        if (processedUserIds.has(reg.userId)) continue;
+
+        // Find partner's registration
+        const partnerReg = tournament.registrations.find(r => r.userId === reg.partnerId);
+        if (!partnerReg) continue;
+
+        // Mark both as processed
+        processedUserIds.add(reg.userId);
+        processedUserIds.add(reg.partnerId);
+
+        const player1Name = reg.user?.fullName || reg.user?.username || 'Player';
+        const player2Name = partnerReg.user?.fullName || partnerReg.user?.username || 'Player';
+
+        teamsToCreate.push({
+          tournamentId,
+          player1Id: reg.userId,
+          player2Id: reg.partnerId,
+          teamName: `${player1Name} & ${player2Name}`,
+        });
+      }
+
+      // Auto-pair remaining unpartnered registrations
+      const unpairedRegistrations = tournament.registrations.filter(
+        reg => !processedUserIds.has(reg.userId)
+      );
+
+      if (unpairedRegistrations.length >= 2) {
+        // Shuffle randomly
+        const shuffled = [...unpairedRegistrations].sort(() => Math.random() - 0.5);
+
+        // Pair them up
+        for (let i = 0; i < shuffled.length - 1; i += 2) {
+          const reg1 = shuffled[i];
+          const reg2 = shuffled[i + 1];
+
+          processedUserIds.add(reg1.userId);
+          processedUserIds.add(reg2.userId);
+
+          const player1Name = reg1.user?.fullName || reg1.user?.username || 'Player';
+          const player2Name = reg2.user?.fullName || reg2.user?.username || 'Player';
+
+          teamsToCreate.push({
+            tournamentId,
+            player1Id: reg1.userId,
+            player2Id: reg2.userId,
+            teamName: `${player1Name} & ${player2Name}`,
+          });
+        }
+      }
+
+      if (teamsToCreate.length > 0) {
+        participants = await Promise.all(
+          teamsToCreate.map(async (teamData) => {
+            return await prisma.team.create({ data: teamData });
+          })
+        );
+      }
     }
 
     if (participants.length < 2) {
@@ -1120,11 +1224,11 @@ async function completeGroupStage(tournamentId) {
       // Create knockout bracket nodes
       const createdNodes = [];
       for (const nodeData of knockoutData.bracketNodes) {
-        const { nextNodeIndex, byeTeamId, ...nodeCreateData } = nodeData;
+        const { nextNodeIndex, byeTeamId, byeAdvanceTeamId, ...nodeCreateData } = nodeData;
         const node = await tx.bracketNode.create({
           data: nodeCreateData,
         });
-        createdNodes.push({ ...node, nextNodeIndex, byeTeamId });
+        createdNodes.push({ ...node, nextNodeIndex, byeTeamId, byeAdvanceTeamId });
       }
 
       // Create knockout matches
@@ -1162,6 +1266,30 @@ async function completeGroupStage(tournamentId) {
           await tx.bracketNode.update({
             where: { id: node.id },
             data: { nextNodeId: nextNode.id },
+          });
+        }
+      }
+
+      // Handle nodes where one team advances via bye (byeAdvanceTeamId)
+      // Create matches with the bye team as team1, team2 will be filled when match completes
+      const totalSlots = Math.pow(2, Math.ceil(Math.log2(knockoutData.knockoutParticipants.length)));
+      const numRounds = Math.log2(totalSlots);
+
+      for (const node of createdNodes) {
+        if (node.byeAdvanceTeamId) {
+          // Create a match with the bye team as team1
+          const match = await tx.match.create({
+            data: {
+              tournamentId,
+              team1Id: node.byeAdvanceTeamId,
+              round: getRoundName(node.roundNumber, numRounds),
+              matchStatus: 'UPCOMING',
+            },
+          });
+
+          await tx.bracketNode.update({
+            where: { id: node.id },
+            data: { matchId: match.id },
           });
         }
       }
