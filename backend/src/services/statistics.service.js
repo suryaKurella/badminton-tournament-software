@@ -477,53 +477,204 @@ async function getPlayerMatchHistory(userId, limit = 10) {
 
 /**
  * Get tournament leaderboard
+ * Ranks by tournament progression (knockout stage) first, then by wins/point differential
  */
 async function getTournamentLeaderboard(tournamentId) {
   try {
-    // Get all players who participated in the tournament
+    // Get tournament to check type
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { tournamentType: true },
+    });
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    const isTeamTournament = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+
+    // Get all completed matches with bracket info
     const matches = await prisma.match.findMany({
       where: {
         tournamentId,
         matchStatus: 'COMPLETED',
       },
       include: {
-        team1: true,
-        team2: true,
+        team1: {
+          include: {
+            player1: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+            player2: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+          },
+        },
+        team2: {
+          include: {
+            player1: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+            player2: { select: { id: true, username: true, fullName: true, avatarUrl: true } },
+          },
+        },
+        bracketNode: true,
       },
     });
 
-    // Calculate tournament-specific stats for each player
-    const playerStats = {};
+    // Separate knockout and non-knockout matches
+    const knockoutMatches = matches.filter(m => m.bracketNode?.bracketType === 'KNOCKOUT');
+    const hasKnockout = knockoutMatches.length > 0;
 
-    matches.forEach((match) => {
-      // Calculate points from team1Score and team2Score (stored as comma-separated strings like "21,15,0")
-      let team1Points = 0;
-      let team2Points = 0;
+    // Find the highest knockout round (to determine finals)
+    const maxKnockoutRound = hasKnockout
+      ? Math.max(...knockoutMatches.map(m => m.bracketNode?.roundNumber || 0))
+      : 0;
 
-      // Parse team1Score
-      if (match.team1Score && typeof match.team1Score === 'string') {
-        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
-        team1Points = scores.reduce((sum, score) => sum + score, 0);
-      }
+    if (isTeamTournament) {
+      // Calculate team-based stats for doubles/mixed tournaments
+      const teamStats = {};
 
-      // Parse team2Score
-      if (match.team2Score && typeof match.team2Score === 'string') {
-        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
-        team2Points = scores.reduce((sum, score) => sum + score, 0);
-      }
+      matches.forEach((match) => {
+        let team1Points = 0;
+        let team2Points = 0;
 
-      const processTeam = (team, isWinner, pointsFor, pointsAgainst) => {
-        // Use Set to avoid counting same player twice in singles (player1Id === player2Id)
-        const uniquePlayerIds = [...new Set([team.player1Id, team.player2Id])];
-        uniquePlayerIds.forEach((playerId) => {
-          if (!playerStats[playerId]) {
-            playerStats[playerId] = {
-              playerId,
+        if (match.team1Score && typeof match.team1Score === 'string') {
+          const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+          team1Points = scores.reduce((sum, score) => sum + score, 0);
+        }
+
+        if (match.team2Score && typeof match.team2Score === 'string') {
+          const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+          team2Points = scores.reduce((sum, score) => sum + score, 0);
+        }
+
+        const isKnockout = match.bracketNode?.bracketType === 'KNOCKOUT';
+        const knockoutRound = match.bracketNode?.roundNumber || 0;
+
+        const processTeam = (team, isWinner, pointsFor, pointsAgainst) => {
+          // Create a unique team key using sorted player IDs
+          const playerIds = [team.player1Id, team.player2Id].sort();
+          const teamKey = playerIds.join('-');
+
+          if (!teamStats[teamKey]) {
+            teamStats[teamKey] = {
+              teamKey,
+              player1: team.player1,
+              player2: team.player2,
               matchesWon: 0,
               matchesLost: 0,
               totalMatches: 0,
               pointsScored: 0,
               pointsConceded: 0,
+              // Knockout progression tracking
+              knockoutProgress: 0, // 0 = didn't qualify, higher = further progression
+              isChampion: false,
+              isRunnerUp: false,
+            };
+          }
+
+          teamStats[teamKey].totalMatches++;
+          teamStats[teamKey].pointsScored += pointsFor;
+          teamStats[teamKey].pointsConceded += pointsAgainst;
+          if (isWinner) {
+            teamStats[teamKey].matchesWon++;
+          } else {
+            teamStats[teamKey].matchesLost++;
+          }
+
+          // Track knockout progression
+          if (isKnockout) {
+            if (isWinner) {
+              // Winner advances - their progress is the next round
+              const progress = knockoutRound + 1;
+              teamStats[teamKey].knockoutProgress = Math.max(teamStats[teamKey].knockoutProgress, progress);
+
+              // Check if this was the final and they won
+              if (knockoutRound === maxKnockoutRound) {
+                teamStats[teamKey].isChampion = true;
+                teamStats[teamKey].knockoutProgress = maxKnockoutRound + 2; // Champion gets highest score
+              }
+            } else {
+              // Loser eliminated at this round
+              teamStats[teamKey].knockoutProgress = Math.max(teamStats[teamKey].knockoutProgress, knockoutRound);
+
+              // Check if this was the final and they lost
+              if (knockoutRound === maxKnockoutRound) {
+                teamStats[teamKey].isRunnerUp = true;
+                teamStats[teamKey].knockoutProgress = maxKnockoutRound + 1; // Runner-up gets second highest
+              }
+            }
+          }
+        };
+
+        processTeam(match.team1, match.winnerId === match.team1Id, team1Points, team2Points);
+        processTeam(match.team2, match.winnerId === match.team2Id, team2Points, team1Points);
+      });
+
+      const teamsArray = Object.values(teamStats).map((stats) => ({
+        ...stats,
+        winRate: stats.totalMatches > 0 ? stats.matchesWon / stats.totalMatches : 0,
+        pointDiff: stats.pointsScored - stats.pointsConceded,
+        isTeam: true,
+      }));
+
+      // Sort teams by progression first, then by wins/point diff
+      teamsArray.sort((a, b) => {
+        // If knockout exists, sort by progression first
+        if (hasKnockout) {
+          if (b.knockoutProgress !== a.knockoutProgress) {
+            return b.knockoutProgress - a.knockoutProgress;
+          }
+        }
+        // Then by wins
+        if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+        // Then by point differential
+        if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+        // Then by points scored
+        if (b.pointsScored !== a.pointsScored) return b.pointsScored - a.pointsScored;
+        // Finally alphabetical
+        const nameA = (a.player1?.fullName || a.player1?.username || '').toLowerCase();
+        const nameB = (b.player1?.fullName || b.player1?.username || '').toLowerCase();
+        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      return {
+        success: true,
+        data: teamsArray,
+        isTeamLeaderboard: true,
+      };
+    }
+
+    // Singles tournament - calculate player-based stats
+    const playerStats = {};
+
+    matches.forEach((match) => {
+      let team1Points = 0;
+      let team2Points = 0;
+
+      if (match.team1Score && typeof match.team1Score === 'string') {
+        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+        team1Points = scores.reduce((sum, score) => sum + score, 0);
+      }
+
+      if (match.team2Score && typeof match.team2Score === 'string') {
+        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+        team2Points = scores.reduce((sum, score) => sum + score, 0);
+      }
+
+      const isKnockout = match.bracketNode?.bracketType === 'KNOCKOUT';
+      const knockoutRound = match.bracketNode?.roundNumber || 0;
+
+      const processTeam = (team, isWinner, pointsFor, pointsAgainst) => {
+        const uniquePlayerIds = [...new Set([team.player1Id, team.player2Id])];
+        uniquePlayerIds.forEach((playerId) => {
+          if (!playerStats[playerId]) {
+            playerStats[playerId] = {
+              playerId,
+              user: team.player1Id === playerId ? team.player1 : team.player2,
+              matchesWon: 0,
+              matchesLost: 0,
+              totalMatches: 0,
+              pointsScored: 0,
+              pointsConceded: 0,
+              knockoutProgress: 0,
+              isChampion: false,
+              isRunnerUp: false,
             };
           }
 
@@ -535,6 +686,26 @@ async function getTournamentLeaderboard(tournamentId) {
           } else {
             playerStats[playerId].matchesLost++;
           }
+
+          // Track knockout progression
+          if (isKnockout) {
+            if (isWinner) {
+              const progress = knockoutRound + 1;
+              playerStats[playerId].knockoutProgress = Math.max(playerStats[playerId].knockoutProgress, progress);
+
+              if (knockoutRound === maxKnockoutRound) {
+                playerStats[playerId].isChampion = true;
+                playerStats[playerId].knockoutProgress = maxKnockoutRound + 2;
+              }
+            } else {
+              playerStats[playerId].knockoutProgress = Math.max(playerStats[playerId].knockoutProgress, knockoutRound);
+
+              if (knockoutRound === maxKnockoutRound) {
+                playerStats[playerId].isRunnerUp = true;
+                playerStats[playerId].knockoutProgress = maxKnockoutRound + 1;
+              }
+            }
+          }
         });
       };
 
@@ -542,52 +713,32 @@ async function getTournamentLeaderboard(tournamentId) {
       processTeam(match.team2, match.winnerId === match.team2Id, team2Points, team1Points);
     });
 
-    // Get player details and global stats
     const playersArray = await Promise.all(
       Object.values(playerStats).map(async (stats) => {
-        const user = await prisma.user.findUnique({
-          where: { id: stats.playerId },
-          select: {
-            id: true,
-            username: true,
-            fullName: true,
-            avatarUrl: true,
-          },
-        });
-
         const globalStats = await prisma.playerStatistics.findUnique({
           where: { userId: stats.playerId },
         });
 
         return {
           ...stats,
-          user,
-          winRate: stats.matchesWon / stats.totalMatches,
+          winRate: stats.totalMatches > 0 ? stats.matchesWon / stats.totalMatches : 0,
+          pointDiff: stats.pointsScored - stats.pointsConceded,
           globalRankingPoints: globalStats?.rankingPoints || 1000,
+          isTeam: false,
         };
       })
     );
 
-    // Sort by matches won, then by win rate, then by fewer losses, then by points scored, then alphabetically
+    // Sort by progression first, then by wins/point diff
     playersArray.sort((a, b) => {
-      // 1. Most matches won
-      if (b.matchesWon !== a.matchesWon) {
-        return b.matchesWon - a.matchesWon;
+      if (hasKnockout) {
+        if (b.knockoutProgress !== a.knockoutProgress) {
+          return b.knockoutProgress - a.knockoutProgress;
+        }
       }
-      // 2. Higher win rate
-      if (b.winRate !== a.winRate) {
-        return b.winRate - a.winRate;
-      }
-      // 3. Fewer losses
-      if (a.matchesLost !== b.matchesLost) {
-        return a.matchesLost - b.matchesLost;
-      }
-      // 4. More points scored
-      if (b.pointsScored !== a.pointsScored) {
-        return b.pointsScored - a.pointsScored;
-      }
-      // 5. Natural sort by name (final deterministic tiebreaker)
-      // Handles numbers in names correctly: "Player 4" < "Player 7" < "Player 10"
+      if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+      if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+      if (b.pointsScored !== a.pointsScored) return b.pointsScored - a.pointsScored;
       const nameA = (a.user?.fullName || a.user?.username || '').toLowerCase();
       const nameB = (b.user?.fullName || b.user?.username || '').toLowerCase();
       return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
@@ -596,6 +747,7 @@ async function getTournamentLeaderboard(tournamentId) {
     return {
       success: true,
       data: playersArray,
+      isTeamLeaderboard: false,
     };
   } catch (error) {
     console.error('Error getting tournament leaderboard:', error);

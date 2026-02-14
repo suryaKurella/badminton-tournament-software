@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, ChevronDown, ChevronUp } from 'lucide-react';
-import { tournamentAPI, matchAPI } from '../../services/api';
+import { tournamentAPI, matchAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button, PartnerSelect } from '../../components/common';
@@ -34,6 +34,8 @@ const TournamentDetails = () => {
   const [selectedAdvancePlayers, setSelectedAdvancePlayers] = useState(4);
   const [roundRobinWinners, setRoundRobinWinners] = useState([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState(null);
+  const [addTeamModal, setAddTeamModal] = useState({ isOpen: false, player1Id: '', player2Id: '', loading: false });
+  const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
     console.log('=== TournamentDetails useEffect ===');
@@ -258,6 +260,96 @@ const TournamentDetails = () => {
     });
   };
 
+  const handleApproveTeam = async (reg1Id, reg2Id, player1Name, player2Name) => {
+    const teamName = `${player1Name} & ${player2Name}`;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Approve Team?',
+      message: `Are you sure you want to approve the team "${teamName}" for this tournament?`,
+      confirmText: 'Approve Team',
+      type: 'success',
+      onConfirm: async () => {
+        try {
+          // Approve both registrations
+          await Promise.all([
+            tournamentAPI.approveRegistration(id, reg1Id),
+            tournamentAPI.approveRegistration(id, reg2Id),
+          ]);
+          toast.success(`Team "${teamName}" approved successfully!`);
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to approve team');
+        }
+      },
+    });
+  };
+
+  const handleRejectTeam = async (reg1Id, reg2Id, player1Name, player2Name) => {
+    const teamName = `${player1Name} & ${player2Name}`;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reject Team?',
+      message: `Are you sure you want to reject the team "${teamName}" from this tournament?`,
+      confirmText: 'Reject Team',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await Promise.all([
+            tournamentAPI.rejectRegistration(id, reg1Id),
+            tournamentAPI.rejectRegistration(id, reg2Id),
+          ]);
+          toast.success(`Team "${teamName}" rejected`);
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to reject team');
+        }
+      },
+    });
+  };
+
+  const handleUnregisterTeam = async (reg1Id, reg2Id, player1Name, player2Name) => {
+    const teamName = `${player1Name} & ${player2Name}`;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Unregister Team?',
+      message: `Are you sure you want to unregister the team "${teamName}" from this tournament?`,
+      confirmText: 'Unregister Team',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await Promise.all([
+            tournamentAPI.unregisterParticipant(id, reg1Id),
+            tournamentAPI.unregisterParticipant(id, reg2Id),
+          ]);
+          toast.success(`Team "${teamName}" has been unregistered`);
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to unregister team');
+        }
+      },
+    });
+  };
+
+  const handleApproveTeamWithPendingPartner = async (regId, playerName, partnerName) => {
+    const teamName = `${playerName} & ${partnerName}`;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Approve Team?',
+      message: `This will register ${partnerName} and approve the team "${teamName}". Continue?`,
+      confirmText: 'Approve Team',
+      type: 'success',
+      onConfirm: async () => {
+        try {
+          const response = await tournamentAPI.approveTeamWithPendingPartner(id, regId);
+          toast.success(response.data.message || `Team "${teamName}" approved successfully!`);
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to approve team');
+        }
+      },
+    });
+  };
+
   const handleRejectRegistration = async (registrationId, userName) => {
     setConfirmModal({
       isOpen: true,
@@ -304,17 +396,19 @@ const TournamentDetails = () => {
     });
   };
 
-  const handleApproveAllPending = async () => {
-    const pendingCount = tournament.registrations?.filter(reg => reg.registrationStatus === 'PENDING').length || 0;
-    if (pendingCount === 0) {
-      toast.info('No pending registrations to approve');
+  const handleApproveAll = async () => {
+    const unapprovedCount = tournament.registrations?.filter(
+      reg => reg.registrationStatus === 'PENDING' || reg.registrationStatus === 'REJECTED'
+    ).length || 0;
+    if (unapprovedCount === 0) {
+      toast.info('No registrations to approve');
       return;
     }
 
     setConfirmModal({
       isOpen: true,
-      title: 'Approve All Pending Registrations?',
-      message: `Are you sure you want to approve all ${pendingCount} pending registration${pendingCount !== 1 ? 's' : ''}?`,
+      title: 'Approve All Registrations?',
+      message: `Are you sure you want to approve all ${unapprovedCount} registration${unapprovedCount !== 1 ? 's' : ''}?`,
       confirmText: 'Approve All',
       type: 'success',
       onConfirm: async () => {
@@ -393,6 +487,38 @@ const TournamentDetails = () => {
     }
   };
 
+  const openAddTeamModal = async () => {
+    try {
+      const response = await userAPI.getAll({ limit: 500 });
+      setAllUsers(response.data.data || []);
+      setAddTeamModal({ isOpen: true, player1Id: '', player2Id: '', loading: false });
+    } catch (error) {
+      toast.error('Failed to load users');
+    }
+  };
+
+  const handleRegisterTeam = async () => {
+    if (!addTeamModal.player1Id || !addTeamModal.player2Id) {
+      toast.error('Please select both players');
+      return;
+    }
+    if (addTeamModal.player1Id === addTeamModal.player2Id) {
+      toast.error('Please select two different players');
+      return;
+    }
+
+    setAddTeamModal(prev => ({ ...prev, loading: true }));
+    try {
+      const response = await tournamentAPI.registerTeam(id, addTeamModal.player1Id, addTeamModal.player2Id);
+      toast.success(response.data.message);
+      setAddTeamModal({ isOpen: false, player1Id: '', player2Id: '', loading: false });
+      fetchTournamentDetails();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to register team');
+      setAddTeamModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const handleDeleteTournament = () => {
     setConfirmModal({
       isOpen: true,
@@ -426,6 +552,18 @@ const TournamentDetails = () => {
   const isRegistered = tournament?.registrations?.some(
     (reg) => reg.userId === user?.id
   );
+
+  // Check if someone has already selected the current user as their partner (for doubles)
+  // Case 1: Current user is registered and someone selected them via partnerId
+  const pendingPartnerInvite = tournament?.registrations?.find(
+    (reg) => reg.partnerId === user?.id && reg.userId !== user?.id
+  );
+  // Case 2: Current user is NOT registered but someone selected them via partnerUser
+  const pendingPartnerUserInvite = tournament?.registrations?.find(
+    (reg) => reg.partnerUser?.id === user?.id && reg.userId !== user?.id
+  );
+  const activeInvite = pendingPartnerInvite || pendingPartnerUserInvite;
+  const invitingPlayerName = activeInvite?.user?.fullName || activeInvite?.user?.username;
 
   const isCreator = tournament?.createdById === user?.id;
   const canManageStatus = isCreator || isOrganizer;
@@ -598,6 +736,33 @@ const TournamentDetails = () => {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
+                  {/* Show partner invite if someone has already selected this user */}
+                  {activeInvite && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (
+                    <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-800 dark:text-green-200 mb-3">
+                        <span className="font-semibold">{invitingPlayerName}</span> has already registered and selected you as their partner.
+                      </p>
+                      <button
+                        onClick={async () => {
+                          setRegistering(true);
+                          try {
+                            await tournamentAPI.register(id, { partnerId: activeInvite.userId });
+                            toast.success('Registration successful! You are now partnered with ' + invitingPlayerName);
+                            fetchTournamentDetails();
+                          } catch (error) {
+                            toast.error(error.response?.data?.message || 'Registration failed');
+                          } finally {
+                            setRegistering(false);
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-brand-green hover:bg-green-600 text-white font-semibold rounded-lg shadow-sm transition-colors"
+                        disabled={registering}
+                      >
+                        {registering ? 'Registering...' : `Register with ${invitingPlayerName}`}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Partner selection for DOUBLES/MIXED tournaments */}
                   {(tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (
                     <PartnerSelect
@@ -703,15 +868,26 @@ const TournamentDetails = () => {
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               )}
             </div>
-            {canManageStatus && tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING').length > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleApproveAllPending(); }}
-                className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
-              >
-                <span>✓</span>
-                Approve All Pending ({tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING').length})
-              </button>
-            )}
+            <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+              {canManageStatus && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+                <button
+                  onClick={openAddTeamModal}
+                  className="px-4 py-2 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white border border-brand-blue/20 hover:border-brand-blue rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  <span>+</span>
+                  Add Team
+                </button>
+              )}
+              {canManageStatus && tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING' || reg.registrationStatus === 'REJECTED').length > 0 && (
+                <button
+                  onClick={handleApproveAll}
+                  className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  <span>✓</span>
+                  Approve All ({tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING' || reg.registrationStatus === 'REJECTED').length})
+                </button>
+              )}
+            </div>
           </div>
           {participantsExpanded && (
             <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-3 sm:mt-4">
@@ -720,10 +896,14 @@ const TournamentDetails = () => {
               const isDoublesFormat = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
               let partnerReg = null;
               let partnerName = null;
+              let pendingPartnerName = null;
               if (isDoublesFormat && reg.partnerId) {
                 partnerReg = tournament.registrations.find(r => r.userId === reg.partnerId);
                 if (partnerReg) {
                   partnerName = partnerReg.user?.fullName || partnerReg.user?.username;
+                } else if (reg.partnerUser) {
+                  // Partner selected but hasn't registered yet
+                  pendingPartnerName = reg.partnerUser.fullName || reg.partnerUser.username;
                 }
               }
               // Check if this player was selected as someone else's partner
@@ -756,7 +936,7 @@ const TournamentDetails = () => {
                   {/* Player name and partner info */}
                   <div className="flex-1 min-w-0">
                     {isDoublesFormat && partnerName ? (
-                      /* Doubles pair display with divider */
+                      /* Doubles pair display with divider - both registered */
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                           <span className="font-medium text-gray-900 dark:text-white px-3 py-1.5 bg-gray-50 dark:bg-slate-700">
@@ -767,7 +947,7 @@ const TournamentDetails = () => {
                             {partnerName}
                           </span>
                         </div>
-                        <StatusBadge status={reg.registrationStatus} />
+                        {canManageStatus && <StatusBadge status={reg.registrationStatus} />}
                         {/* Admin can change partner */}
                         {canManageStatus && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
                           <select
@@ -796,6 +976,46 @@ const TournamentDetails = () => {
                               ))
                             }
                           </select>
+                        )}
+                      </div>
+                    ) : isDoublesFormat && pendingPartnerName ? (
+                      /* Doubles pair display - partner selected but not yet registered */
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center border border-amber-300 dark:border-amber-600 rounded-lg overflow-hidden">
+                          <span className="font-medium text-gray-900 dark:text-white px-3 py-1.5 bg-gray-50 dark:bg-slate-700">
+                            {reg.user.fullName || reg.user.username}
+                          </span>
+                          <span className="border-l border-amber-300 dark:border-amber-600 h-full"></span>
+                          <span className="font-medium text-amber-700 dark:text-amber-300 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30">
+                            {pendingPartnerName}
+                          </span>
+                        </div>
+                        {canManageStatus && <StatusBadge status={reg.registrationStatus} />}
+                        {reg.partnerUser?.id === user?.id && !isRegistered && tournament.status === 'OPEN' && !tournament.registrationClosed ? (
+                          /* Current user is the pending partner - show Accept button */
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setRegistering(true);
+                              try {
+                                await tournamentAPI.register(id, { partnerId: reg.userId });
+                                toast.success(`Registration successful! You are now partnered with ${reg.user.fullName || reg.user.username}`);
+                                fetchTournamentDetails();
+                              } catch (error) {
+                                toast.error(error.response?.data?.message || 'Registration failed');
+                              } finally {
+                                setRegistering(false);
+                              }
+                            }}
+                            disabled={registering}
+                            className="px-3 py-1 bg-brand-green hover:bg-green-600 text-white text-xs font-semibold rounded-full shadow-sm transition-colors disabled:opacity-50"
+                          >
+                            {registering ? 'Accepting...' : 'Accept'}
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                            Pending acceptance
+                          </span>
                         )}
                       </div>
                     ) : (
@@ -848,35 +1068,68 @@ const TournamentDetails = () => {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {canManageStatus && (
                     <>
-                      {/* For PENDING: Show Approve and Reject */}
-                      {reg.registrationStatus === 'PENDING' && (
+                      {/* TEAM ACTIONS for doubles pairs - both registered */}
+                      {isDoublesFormat && partnerReg ? (
                         <>
+                          {/* Approve Team - show if either player is PENDING or REJECTED */}
+                          {(reg.registrationStatus === 'PENDING' || partnerReg.registrationStatus === 'PENDING' ||
+                            reg.registrationStatus === 'REJECTED' || partnerReg.registrationStatus === 'REJECTED') && (
+                            <button
+                              onClick={() => handleApproveTeam(
+                                reg.id,
+                                partnerReg.id,
+                                reg.user.fullName || reg.user.username,
+                                partnerReg.user.fullName || partnerReg.user.username
+                              )}
+                              className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
+                            >
+                              Approve Team
+                            </button>
+                          )}
+
+                          {/* Reject Team - hide if both are already rejected */}
+                          {!(reg.registrationStatus === 'REJECTED' && partnerReg.registrationStatus === 'REJECTED') && (
+                            <button
+                              onClick={() => handleRejectTeam(
+                                reg.id,
+                                partnerReg.id,
+                                reg.user.fullName || reg.user.username,
+                                partnerReg.user.fullName || partnerReg.user.username
+                              )}
+                              className="px-4 py-2 bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error rounded-lg font-semibold text-sm transition-all"
+                            >
+                              Reject Team
+                            </button>
+                          )}
+
+                          {/* Unregister Team */}
                           <button
-                            onClick={() => handleApproveRegistration(reg.id, reg.user.fullName || reg.user.username)}
-                            className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
+                            onClick={() => handleUnregisterTeam(
+                              reg.id,
+                              partnerReg.id,
+                              reg.user.fullName || reg.user.username,
+                              partnerReg.user.fullName || partnerReg.user.username
+                            )}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm transition-all"
                           >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleRejectRegistration(reg.id, reg.user.fullName || reg.user.username)}
-                            className="px-4 py-2 bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error rounded-lg font-semibold text-sm transition-all"
-                          >
-                            Reject
+                            Unregister Team
                           </button>
                         </>
-                      )}
-
-                      {/* For APPROVED: Show Reject and Unregister */}
-                      {reg.registrationStatus === 'APPROVED' && (
+                      ) : isDoublesFormat && pendingPartnerName ? (
+                        /* TEAM ACTIONS for pending partner - partner not yet registered */
                         <>
                           <button
-                            onClick={() => handleRejectRegistration(reg.id, reg.user.fullName || reg.user.username)}
-                            className="px-4 py-2 bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error rounded-lg font-semibold text-sm transition-all"
+                            onClick={() => handleApproveTeamWithPendingPartner(
+                              reg.id,
+                              reg.user.fullName || reg.user.username,
+                              pendingPartnerName
+                            )}
+                            className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
                           >
-                            Reject
+                            Approve Team
                           </button>
                           <button
                             onClick={() => handleUnregisterParticipant(reg.id, reg.user.fullName || reg.user.username, reg.userId)}
@@ -885,23 +1138,62 @@ const TournamentDetails = () => {
                             Unregister
                           </button>
                         </>
-                      )}
-
-                      {/* For REJECTED: Show Re-approve and Unregister */}
-                      {reg.registrationStatus === 'REJECTED' && (
+                      ) : (
                         <>
-                          <button
-                            onClick={() => handleApproveRegistration(reg.id, reg.user.fullName || reg.user.username, true)}
-                            className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
-                          >
-                            Re-approve
-                          </button>
-                          <button
-                            onClick={() => handleUnregisterParticipant(reg.id, reg.user.fullName || reg.user.username, reg.userId)}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm transition-all"
-                          >
-                            Unregister
-                          </button>
+                          {/* INDIVIDUAL ACTIONS for singles or unpaired */}
+                          {/* For PENDING: Show Approve and Reject */}
+                          {reg.registrationStatus === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveRegistration(reg.id, reg.user.fullName || reg.user.username)}
+                                className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectRegistration(reg.id, reg.user.fullName || reg.user.username)}
+                                className="px-4 py-2 bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* For APPROVED: Show Reject and Unregister */}
+                          {reg.registrationStatus === 'APPROVED' && (
+                            <>
+                              <button
+                                onClick={() => handleRejectRegistration(reg.id, reg.user.fullName || reg.user.username)}
+                                className="px-4 py-2 bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Reject
+                              </button>
+                              <button
+                                onClick={() => handleUnregisterParticipant(reg.id, reg.user.fullName || reg.user.username, reg.userId)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Unregister
+                              </button>
+                            </>
+                          )}
+
+                          {/* For REJECTED: Show Re-approve and Unregister */}
+                          {reg.registrationStatus === 'REJECTED' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveRegistration(reg.id, reg.user.fullName || reg.user.username, true)}
+                                className="px-4 py-2 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20 hover:border-success rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Re-approve
+                              </button>
+                              <button
+                                onClick={() => handleUnregisterParticipant(reg.id, reg.user.fullName || reg.user.username, reg.userId)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Unregister
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </>
@@ -1441,6 +1733,77 @@ const TournamentDetails = () => {
         cancelText={confirmModal.cancelText}
         type={confirmModal.type || 'primary'}
       />
+
+      {/* Add Team Modal */}
+      {addTeamModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Register Team
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Player 1
+                </label>
+                <select
+                  value={addTeamModal.player1Id}
+                  onChange={(e) => setAddTeamModal(prev => ({ ...prev, player1Id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                  disabled={addTeamModal.loading}
+                >
+                  <option value="">Select player...</option>
+                  {allUsers
+                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id))
+                    .map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.username}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Player 2
+                </label>
+                <select
+                  value={addTeamModal.player2Id}
+                  onChange={(e) => setAddTeamModal(prev => ({ ...prev, player2Id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                  disabled={addTeamModal.loading}
+                >
+                  <option value="">Select player...</option>
+                  {allUsers
+                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id) && u.id !== addTeamModal.player1Id)
+                    .map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName || u.username}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setAddTeamModal({ isOpen: false, player1Id: '', player2Id: '', loading: false })}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                disabled={addTeamModal.loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegisterTeam}
+                disabled={addTeamModal.loading || !addTeamModal.player1Id || !addTeamModal.player2Id}
+                className="flex-1 px-4 py-2 bg-brand-blue hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addTeamModal.loading ? 'Registering...' : 'Register Team'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -297,6 +297,7 @@ enum BracketType {
   GROUP_G
   GROUP_H
   KNOCKOUT
+  THIRD_PLACE
 }
 
 // Player Statistics model - aggregate stats for each player

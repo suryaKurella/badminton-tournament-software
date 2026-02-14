@@ -27,6 +27,8 @@ const {
   declareWinners,
   getPotentialPartners,
   assignPartner,
+  approveTeamWithPendingPartner,
+  adminRegisterTeam,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 
@@ -38,10 +40,12 @@ router.post('/', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), createTournam
 router.put('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updateTournament);
 router.delete('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), deleteTournament);
 router.post('/:id/register', protect, registerForTournament);
+router.post('/:id/register-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), adminRegisterTeam);
 router.delete('/:id/register', protect, deregisterFromTournament);
 router.get('/:id/potential-partners', protect, getPotentialPartners);
 router.put('/:id/registrations/approve-all', protect, approveAllPendingRegistrations);
 router.put('/:id/registrations/:registrationId/approve', protect, approveRegistration);
+router.put('/:id/registrations/:registrationId/approve-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), approveTeamWithPendingPartner);
 router.put('/:id/registrations/:registrationId/reject', protect, rejectRegistration);
 router.delete('/:id/registrations/:registrationId', protect, unregisterParticipant);
 router.put('/:id/toggle-pause', protect, togglePauseTournament);

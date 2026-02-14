@@ -818,9 +818,13 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
       );
     }
 
-    // If doubles/mixed tournament and no teams, create teams from registrations with partners
-    if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length === 0) {
+    // If doubles/mixed tournament, create teams from registrations with partners
+    // Calculate expected team count: each team needs 2 players
+    const expectedTeamCount = Math.floor(tournament.registrations.length / 2);
+    if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length < expectedTeamCount) {
       console.log('=== DOUBLES TEAM CREATION ===');
+      console.log('Existing teams:', participants.length);
+      console.log('Expected teams:', expectedTeamCount);
       console.log('Total registrations:', tournament.registrations.length);
       console.log('Registrations:', tournament.registrations.map(r => ({
         userId: r.userId,
@@ -828,11 +832,23 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         partnerId: r.partnerId,
       })));
 
-      // Get registrations that have partners
-      const pairedRegistrations = tournament.registrations.filter(reg => reg.partnerId);
-      console.log('Registrations with partnerId set:', pairedRegistrations.length);
+      // Track users already in existing teams
+      const usersInExistingTeams = new Set();
+      for (const team of participants) {
+        usersInExistingTeams.add(team.player1Id);
+        if (team.player2Id && team.player2Id !== team.player1Id) {
+          usersInExistingTeams.add(team.player2Id);
+        }
+      }
+      console.log('Users already in teams:', usersInExistingTeams.size);
 
-      const processedUserIds = new Set();
+      // Get registrations that have partners and aren't already in teams
+      const pairedRegistrations = tournament.registrations.filter(
+        reg => reg.partnerId && !usersInExistingTeams.has(reg.userId)
+      );
+      console.log('Registrations with partnerId set (not in teams):', pairedRegistrations.length);
+
+      const processedUserIds = new Set(usersInExistingTeams);
       const teamsToCreate = [];
 
       for (const reg of pairedRegistrations) {
@@ -842,6 +858,9 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         // Find partner's registration
         const partnerReg = tournament.registrations.find(r => r.userId === reg.partnerId);
         if (!partnerReg) continue;
+
+        // Skip if partner is already in a team
+        if (processedUserIds.has(reg.partnerId)) continue;
 
         // Mark both as processed
         processedUserIds.add(reg.userId);
@@ -858,7 +877,7 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         });
       }
 
-      // Auto-pair remaining unpartnered registrations
+      // Auto-pair remaining unpartnered registrations (not already in teams)
       const unpairedRegistrations = tournament.registrations.filter(
         reg => !processedUserIds.has(reg.userId)
       );
@@ -891,12 +910,15 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
       console.log('Unprocessed registrations:', tournament.registrations.filter(r => !processedUserIds.has(r.userId)).length);
 
       if (teamsToCreate.length > 0) {
-        participants = await Promise.all(
+        const newTeams = await Promise.all(
           teamsToCreate.map(async (teamData) => {
             return await prisma.team.create({ data: teamData });
           })
         );
-        console.log('Created teams:', participants.length);
+        // Append new teams to existing participants
+        participants = [...participants, ...newTeams];
+        console.log('Created teams:', newTeams.length);
+        console.log('Total teams now:', participants.length);
       }
     }
 

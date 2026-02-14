@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const TournamentLeaderboard = ({ tournamentId }) => {
-  const [players, setPlayers] = useState([]);
+  const [entries, setEntries] = useState([]);
+  const [isTeamLeaderboard, setIsTeamLeaderboard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -18,7 +19,8 @@ const TournamentLeaderboard = ({ tournamentId }) => {
       );
 
       if (response.data.success) {
-        setPlayers(response.data.data || []);
+        setEntries(response.data.data || []);
+        setIsTeamLeaderboard(response.data.isTeamLeaderboard || false);
       } else {
         setError(response.data.message || 'Failed to load leaderboard');
       }
@@ -28,6 +30,26 @@ const TournamentLeaderboard = ({ tournamentId }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTeamName = (entry) => {
+    const player1Name = entry.player1?.fullName || entry.player1?.username || 'Unknown';
+    const player2Name = entry.player2?.fullName || entry.player2?.username || 'Unknown';
+    return `${player1Name} & ${player2Name}`;
+  };
+
+  const getTeamInitials = (entry) => {
+    const initial1 = (entry.player1?.fullName || entry.player1?.username || 'U').charAt(0).toUpperCase();
+    const initial2 = (entry.player2?.fullName || entry.player2?.username || 'U').charAt(0).toUpperCase();
+    return `${initial1}${initial2}`;
+  };
+
+  const getPlayerName = (entry) => {
+    return entry.user?.fullName || entry.user?.username || 'Unknown Player';
+  };
+
+  const getPlayerInitial = (entry) => {
+    return (entry.user?.fullName || entry.user?.username || 'U').charAt(0).toUpperCase();
   };
 
   if (loading) {
@@ -46,7 +68,7 @@ const TournamentLeaderboard = ({ tournamentId }) => {
     );
   }
 
-  if (players.length === 0) {
+  if (entries.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-gray-400">
         <p>No rankings available yet. Complete some matches to see the leaderboard.</p>
@@ -63,7 +85,7 @@ const TournamentLeaderboard = ({ tournamentId }) => {
               Rank
             </th>
             <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-              Player
+              {isTeamLeaderboard ? 'Team' : 'Player'}
             </th>
             <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
               Matches
@@ -80,15 +102,15 @@ const TournamentLeaderboard = ({ tournamentId }) => {
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-          {players.map((player, index) => {
+          {entries.map((entry, index) => {
             const rank = index + 1;
-            const winRate = player.totalMatches > 0
-              ? ((player.matchesWon / player.totalMatches) * 100).toFixed(1)
+            const winRate = entry.totalMatches > 0
+              ? ((entry.matchesWon / entry.totalMatches) * 100).toFixed(1)
               : '0.0';
 
             return (
               <tr
-                key={player.id || player.userId}
+                key={entry.teamKey || entry.playerId || index}
                 className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 {/* Rank */}
@@ -104,35 +126,46 @@ const TournamentLeaderboard = ({ tournamentId }) => {
                   </div>
                 </td>
 
-                {/* Player Name */}
-                <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
-                      {(player.user?.fullName || player.user?.username || 'U').charAt(0).toUpperCase()}
+                {/* Team/Player Name */}
+                <td className="px-4 sm:px-6 py-4">
+                  {isTeamLeaderboard ? (
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {entry.player1?.fullName || entry.player1?.username || 'Unknown'}
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {entry.player2?.fullName || entry.player2?.username || 'Unknown'}
+                      </span>
                     </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-white">
-                        {player.user?.fullName || player.user?.username || 'Unknown Player'}
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
+                        {getPlayerInitial(entry)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">
+                          {getPlayerName(entry)}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </td>
 
                 {/* Matches */}
                 <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden sm:table-cell">
-                  <span className="text-gray-900 dark:text-white font-semibold">{player.totalMatches || 0}</span>
+                  <span className="text-gray-900 dark:text-white font-semibold">{entry.totalMatches || 0}</span>
                 </td>
 
                 {/* W-L */}
                 <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
-                  <span className="text-green-600 dark:text-green-400 font-semibold">{player.matchesWon || 0}</span>
+                  <span className="text-green-600 dark:text-green-400 font-semibold">{entry.matchesWon || 0}</span>
                   <span className="text-gray-500 mx-1">-</span>
-                  <span className="text-red-600 dark:text-red-400 font-semibold">{player.matchesLost || 0}</span>
+                  <span className="text-red-600 dark:text-red-400 font-semibold">{entry.matchesLost || 0}</span>
                 </td>
 
                 {/* Points */}
                 <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
-                  <span className="text-gray-900 dark:text-white font-semibold">{player.pointsScored || 0}</span>
+                  <span className="text-gray-900 dark:text-white font-semibold">{entry.pointsScored || 0}</span>
                 </td>
 
                 {/* Win Rate */}

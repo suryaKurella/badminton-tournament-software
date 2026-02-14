@@ -207,6 +207,35 @@ const getTournament = async (req, res) => {
       });
     }
 
+    // For doubles/mixed tournaments, fetch partner user info for registrations with partnerId
+    if (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') {
+      const partnerIds = tournament.registrations
+        .filter(reg => reg.partnerId)
+        .map(reg => reg.partnerId);
+
+      if (partnerIds.length > 0) {
+        const partnerUsers = await prisma.user.findMany({
+          where: { id: { in: partnerIds } },
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+          },
+        });
+
+        const partnerUserMap = partnerUsers.reduce((acc, user) => {
+          acc[user.id] = user;
+          return acc;
+        }, {});
+
+        // Add partnerUser to each registration that has a partnerId
+        tournament.registrations = tournament.registrations.map(reg => ({
+          ...reg,
+          partnerUser: reg.partnerId ? partnerUserMap[reg.partnerId] || null : null,
+        }));
+      }
+    }
+
     // Hide DRAFT tournaments from regular players (but allow creator to view)
     const isOrganizer = req.user && (req.user.role === 'ROOT' || req.user.role === 'ADMIN' || req.user.role === 'ORGANIZER');
     const isCreator = req.user && tournament.createdById === req.user.id;
@@ -1396,11 +1425,13 @@ const approveAllPendingRegistrations = async (req, res) => {
       });
     }
 
-    // Update all pending registrations to APPROVED
+    // Update all pending and rejected registrations to APPROVED
     const result = await prisma.registration.updateMany({
       where: {
         tournamentId: id,
-        registrationStatus: 'PENDING',
+        registrationStatus: {
+          in: ['PENDING', 'REJECTED'],
+        },
       },
       data: {
         registrationStatus: 'APPROVED',
@@ -2736,6 +2767,294 @@ const assignPartner = async (req, res) => {
   }
 };
 
+// @desc    Approve a team where the partner hasn't registered yet (creates their registration)
+// @route   PUT /api/tournaments/:id/registrations/:registrationId/approve-team
+// @access  Private (Organizer/Admin only)
+const approveTeamWithPendingPartner = async (req, res) => {
+  try {
+    const { id, registrationId } = req.params;
+
+    // Get tournament
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        createdById: true,
+        name: true,
+        tournamentType: true,
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check if user is the organizer or admin
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only tournament organizers can approve registrations',
+      });
+    }
+
+    // Get the registration with partner info
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!registration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Registration not found',
+      });
+    }
+
+    if (registration.tournamentId !== id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Registration does not belong to this tournament',
+      });
+    }
+
+    if (!registration.partnerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This registration does not have a partner selected',
+      });
+    }
+
+    // Check if partner already has a registration
+    const existingPartnerReg = await prisma.registration.findUnique({
+      where: {
+        userId_tournamentId: {
+          userId: registration.partnerId,
+          tournamentId: id,
+        },
+      },
+    });
+
+    if (existingPartnerReg) {
+      // Partner already registered - just approve both
+      await prisma.registration.updateMany({
+        where: {
+          id: { in: [registration.id, existingPartnerReg.id] },
+        },
+        data: { registrationStatus: 'APPROVED' },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Team approved successfully',
+      });
+    }
+
+    // Partner hasn't registered - create their registration and approve both
+    const partnerUser = await prisma.user.findUnique({
+      where: { id: registration.partnerId },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+      },
+    });
+
+    if (!partnerUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner user not found',
+      });
+    }
+
+    // Create partner's registration with partnerId pointing back to the original registrant
+    const partnerRegistration = await prisma.registration.create({
+      data: {
+        userId: partnerUser.id,
+        tournamentId: id,
+        partnerId: registration.userId,
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'PENDING',
+      },
+    });
+
+    // Approve the original registration
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: { registrationStatus: 'APPROVED' },
+    });
+
+    const playerName = registration.user.fullName || registration.user.username;
+    const partnerName = partnerUser.fullName || partnerUser.username;
+
+    res.status(200).json({
+      success: true,
+      message: `Team "${playerName} & ${partnerName}" approved successfully`,
+    });
+  } catch (error) {
+    console.error('Approve team with pending partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error approving team',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Admin registers a team (two players) directly
+// @route   POST /api/tournaments/:id/register-team
+// @access  Private (Organizer/Admin only)
+const adminRegisterTeam = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { player1Id, player2Id } = req.body;
+
+    if (!player1Id || !player2Id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both player1Id and player2Id are required',
+      });
+    }
+
+    if (player1Id === player2Id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot register the same player twice',
+      });
+    }
+
+    // Get tournament
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        createdById: true,
+        name: true,
+        tournamentType: true,
+        maxParticipants: true,
+        _count: {
+          select: { registrations: true },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check if user is the organizer or admin
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only tournament organizers can register teams',
+      });
+    }
+
+    // Check tournament type
+    if (tournament.tournamentType !== 'DOUBLES' && tournament.tournamentType !== 'MIXED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Team registration is only for DOUBLES or MIXED tournaments',
+      });
+    }
+
+    // Get both players
+    const [player1, player2] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: player1Id },
+        select: { id: true, username: true, fullName: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: player2Id },
+        select: { id: true, username: true, fullName: true },
+      }),
+    ]);
+
+    if (!player1 || !player2) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or both players not found',
+      });
+    }
+
+    // Check if either player is already registered
+    const existingRegs = await prisma.registration.findMany({
+      where: {
+        tournamentId: id,
+        userId: { in: [player1Id, player2Id] },
+      },
+    });
+
+    if (existingRegs.length > 0) {
+      const registeredNames = existingRegs.map(r => {
+        const p = r.userId === player1Id ? player1 : player2;
+        return p.fullName || p.username;
+      });
+      return res.status(400).json({
+        success: false,
+        message: `${registeredNames.join(' and ')} already registered for this tournament`,
+      });
+    }
+
+    // Create both registrations
+    const [reg1, reg2] = await Promise.all([
+      prisma.registration.create({
+        data: {
+          userId: player1Id,
+          tournamentId: id,
+          partnerId: player2Id,
+          registrationStatus: 'APPROVED',
+          paymentStatus: 'PENDING',
+        },
+      }),
+      prisma.registration.create({
+        data: {
+          userId: player2Id,
+          tournamentId: id,
+          partnerId: player1Id,
+          registrationStatus: 'APPROVED',
+          paymentStatus: 'PENDING',
+        },
+      }),
+    ]);
+
+    const player1Name = player1.fullName || player1.username;
+    const player2Name = player2.fullName || player2.username;
+
+    res.status(201).json({
+      success: true,
+      message: `Team "${player1Name} & ${player2Name}" registered successfully`,
+      data: { registration1: reg1, registration2: reg2 },
+    });
+  } catch (error) {
+    console.error('Admin register team error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering team',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -2764,4 +3083,6 @@ module.exports = {
   declareWinners,
   getPotentialPartners,
   assignPartner,
+  approveTeamWithPendingPartner,
+  adminRegisterTeam,
 };
