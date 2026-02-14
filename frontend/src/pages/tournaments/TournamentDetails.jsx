@@ -4,7 +4,7 @@ import { Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { tournamentAPI, matchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button } from '../../components/common';
+import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button, PartnerSelect } from '../../components/common';
 import BracketView from '../../components/bracket/BracketView';
 import GroupStageView from '../../components/bracket/GroupStageView';
 import ManualGroupAssignment from '../../components/bracket/ManualGroupAssignment';
@@ -33,6 +33,7 @@ const TournamentDetails = () => {
   const [processingCompletion, setProcessingCompletion] = useState(false);
   const [selectedAdvancePlayers, setSelectedAdvancePlayers] = useState(4);
   const [roundRobinWinners, setRoundRobinWinners] = useState([]);
+  const [selectedPartnerId, setSelectedPartnerId] = useState(null);
 
   useEffect(() => {
     console.log('=== TournamentDetails useEffect ===');
@@ -159,8 +160,13 @@ const TournamentDetails = () => {
 
     setRegistering(true);
     try {
-      await tournamentAPI.register(id, {});
+      const registrationData = {};
+      if (selectedPartnerId) {
+        registrationData.partnerId = selectedPartnerId;
+      }
+      await tournamentAPI.register(id, registrationData);
       toast.success('Registration successful! 🎾');
+      setSelectedPartnerId(null); // Reset partner selection
       fetchTournamentDetails();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Registration failed');
@@ -377,6 +383,16 @@ const TournamentDetails = () => {
     }
   };
 
+  const handleAssignPartner = async (registrationId, partnerRegistrationId) => {
+    try {
+      const response = await tournamentAPI.assignPartner(id, registrationId, partnerRegistrationId);
+      toast.success(response.data.message);
+      fetchTournamentDetails();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to assign partner');
+    }
+  };
+
   const handleDeleteTournament = () => {
     setConfirmModal({
       isOpen: true,
@@ -581,13 +597,24 @@ const TournamentDetails = () => {
                   🔒 Registration Closed
                 </div>
               ) : (
-                <button
-                  onClick={handleRegister}
-                  className="px-6 py-2 bg-brand-blue hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-colors"
-                  disabled={registering}
-                >
-                  {registering ? 'Registering...' : 'Register Now'}
-                </button>
+                <div className="flex flex-col gap-3">
+                  {/* Partner selection for DOUBLES/MIXED tournaments */}
+                  {(tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (
+                    <PartnerSelect
+                      tournamentId={id}
+                      value={selectedPartnerId}
+                      onChange={setSelectedPartnerId}
+                      disabled={registering}
+                    />
+                  )}
+                  <button
+                    onClick={handleRegister}
+                    className="px-6 py-2 bg-brand-blue hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-colors"
+                    disabled={registering}
+                  >
+                    {registering ? 'Registering...' : 'Register Now'}
+                  </button>
+                </div>
               )
             )}
             {isRegistered && (
@@ -688,16 +715,136 @@ const TournamentDetails = () => {
           </div>
           {participantsExpanded && (
             <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-3 sm:mt-4">
-            {tournament.registrations.map((reg) => (
+            {tournament.registrations.map((reg) => {
+              // For doubles/mixed, find partner's registration
+              const isDoublesFormat = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+              let partnerReg = null;
+              let partnerName = null;
+              if (isDoublesFormat && reg.partnerId) {
+                partnerReg = tournament.registrations.find(r => r.userId === reg.partnerId);
+                if (partnerReg) {
+                  partnerName = partnerReg.user?.fullName || partnerReg.user?.username;
+                }
+              }
+              // Check if this player was selected as someone else's partner
+              const selectedByOther = isDoublesFormat ? tournament.registrations.find(
+                r => r.partnerId === reg.userId
+              ) : null;
+              const selectedByName = selectedByOther?.user?.fullName || selectedByOther?.user?.username;
+
+              // Skip if this player was selected by someone else - they'll show in that person's pair
+              // For mutual pairs (both selected each other), only show one - the one who registered first
+              if (selectedByOther) {
+                // If this player doesn't have a partnerId, skip (they'll appear in the selector's row)
+                if (!reg.partnerId) {
+                  return null;
+                }
+                // If mutual pair, only show the one with earlier registration (lower index)
+                const myIndex = tournament.registrations.findIndex(r => r.id === reg.id);
+                const theirIndex = tournament.registrations.findIndex(r => r.id === selectedByOther.id);
+                if (myIndex > theirIndex) {
+                  return null; // Skip - the other person's row will show this pair
+                }
+              }
+
+              return (
               <div
                 key={reg.id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 glass-surface"
               >
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="font-medium text-gray-900 dark:text-white">
-                    {reg.user.fullName || reg.user.username}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Player name and partner info */}
+                  <div className="flex-1 min-w-0">
+                    {isDoublesFormat && partnerName ? (
+                      /* Doubles pair display with divider */
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                          <span className="font-medium text-gray-900 dark:text-white px-3 py-1.5 bg-gray-50 dark:bg-slate-700">
+                            {reg.user.fullName || reg.user.username}
+                          </span>
+                          <span className="border-l border-gray-300 dark:border-gray-600 h-full"></span>
+                          <span className="font-medium text-gray-900 dark:text-white px-3 py-1.5 bg-gray-50 dark:bg-slate-700">
+                            {partnerName}
+                          </span>
+                        </div>
+                        <StatusBadge status={reg.registrationStatus} />
+                        {/* Admin can change partner */}
+                        {canManageStatus && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+                          <select
+                            className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAssignPartner(reg.id, e.target.value === 'clear' ? null : e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                          >
+                            <option value="">Change...</option>
+                            <option value="clear">Remove partner</option>
+                            {tournament.registrations
+                              .filter(r =>
+                                r.id !== reg.id && // Not self
+                                r.id !== partnerReg?.id && // Not current partner
+                                !r.partnerId && // Doesn't have a partner
+                                !tournament.registrations.some(other => other.partnerId === r.userId) // Not selected by anyone
+                              )
+                              .map(r => (
+                                <option key={r.id} value={r.id}>
+                                  {r.user.fullName || r.user.username}
+                                </option>
+                              ))
+                            }
+                          </select>
+                        )}
+                      </div>
+                    ) : (
+                      /* Singles or no partner selected */
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900 dark:text-white truncate">
+                          {reg.user.fullName || reg.user.username}
+                        </span>
+                        <StatusBadge status={reg.registrationStatus} />
+                        {isDoublesFormat && (
+                          selectedByName ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              Partner of {selectedByName}
+                            </span>
+                          ) : canManageStatus && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') ? (
+                            /* Admin can assign partner */
+                            <select
+                              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                              defaultValue=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleAssignPartner(reg.id, e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                            >
+                              <option value="">Assign partner...</option>
+                              {tournament.registrations
+                                .filter(r =>
+                                  r.id !== reg.id && // Not self
+                                  !r.partnerId && // Doesn't have a partner
+                                  !tournament.registrations.some(other => other.partnerId === r.userId) // Not selected by anyone
+                                )
+                                .map(r => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.user.fullName || r.user.username}
+                                  </option>
+                                ))
+                              }
+                            </select>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                              No partner
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <StatusBadge status={reg.registrationStatus} />
                 </div>
 
                 {/* Action buttons */}
@@ -771,7 +918,8 @@ const TournamentDetails = () => {
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
             </div>
           )}
         </div>

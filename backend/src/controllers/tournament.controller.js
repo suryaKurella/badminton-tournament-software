@@ -416,8 +416,11 @@ const updateTournament = async (req, res) => {
           );
         } catch (bracketError) {
           console.error('Error generating bracket:', bracketError);
-          // Don't fail the tournament update if bracket generation fails
-          // It can be regenerated manually later
+          // Return the error to user so they can fix the issue
+          return res.status(400).json({
+            success: false,
+            message: bracketError.message || 'Failed to generate bracket. Please check registrations.',
+          });
         }
       }
     }
@@ -2498,6 +2501,241 @@ const declareWinners = async (req, res) => {
   }
 };
 
+// @desc    Get potential partners for doubles registration
+// @route   GET /api/tournaments/:id/potential-partners
+// @access  Private
+const getPotentialPartners = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { search } = req.query;
+    const currentUserId = req.user.id;
+
+    // Get tournament to verify it exists and is DOUBLES/MIXED
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        registrations: {
+          select: { userId: true, partnerId: true },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    if (tournament.tournamentType !== 'DOUBLES' && tournament.tournamentType !== 'MIXED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Partner selection only available for doubles/mixed tournaments',
+      });
+    }
+
+    // Get users who are already registered AND have a partner assigned
+    const registeredWithPartner = new Set(
+      tournament.registrations
+        .filter(reg => reg.partnerId)
+        .map(reg => reg.userId)
+    );
+
+    // Build search query
+    const where = {
+      id: { not: currentUserId }, // Exclude self
+      NOT: {
+        id: { in: Array.from(registeredWithPartner) }, // Exclude users who already have a partner
+      },
+    };
+
+    // Add search filter if provided
+    if (search && search.trim()) {
+      where.OR = [
+        { username: { contains: search, mode: 'insensitive' } },
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const potentialPartners = await prisma.user.findMany({
+      where,
+      take: 20,
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        avatarUrl: true,
+      },
+      orderBy: [
+        { fullName: 'asc' },
+        { username: 'asc' },
+      ],
+    });
+
+    // Mark users who are already registered (but without partner)
+    const registeredUserIds = new Set(tournament.registrations.map(reg => reg.userId));
+    const partnersWithStatus = potentialPartners.map(user => ({
+      ...user,
+      isRegistered: registeredUserIds.has(user.id),
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: partnersWithStatus,
+    });
+  } catch (error) {
+    console.error('Get potential partners error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching potential partners',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Assign partner to a registration (admin only)
+// @route   PUT /api/tournaments/:id/registrations/:registrationId/assign-partner
+// @access  Private (Organizer/Admin)
+const assignPartner = async (req, res) => {
+  try {
+    const { id, registrationId } = req.params;
+    const { partnerRegistrationId } = req.body;
+
+    // Get tournament
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        registrations: {
+          include: {
+            user: { select: { id: true, fullName: true, username: true } },
+          },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Check if user is organizer/admin
+    const isOrganizer = req.user.role === 'ROOT' || req.user.role === 'ADMIN' || req.user.role === 'ORGANIZER';
+    const isCreator = tournament.createdById === req.user.id;
+    if (!isOrganizer && !isCreator) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Check tournament type
+    if (tournament.tournamentType !== 'DOUBLES' && tournament.tournamentType !== 'MIXED') {
+      return res.status(400).json({ success: false, message: 'Partner assignment is only for doubles tournaments' });
+    }
+
+    // Find the registration to update
+    const registration = tournament.registrations.find(r => r.id === registrationId);
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Registration not found' });
+    }
+
+    // If clearing partner (partnerRegistrationId is null)
+    if (!partnerRegistrationId) {
+      // Also clear the old partner's link back to this player
+      const oldPartnerId = registration.partnerId;
+      const updates = [
+        prisma.registration.update({
+          where: { id: registrationId },
+          data: { partnerId: null },
+        }),
+      ];
+
+      // If there was an old partner, clear their link too
+      if (oldPartnerId) {
+        const oldPartnerReg = tournament.registrations.find(r => r.userId === oldPartnerId);
+        if (oldPartnerReg && oldPartnerReg.partnerId === registration.userId) {
+          updates.push(
+            prisma.registration.update({
+              where: { id: oldPartnerReg.id },
+              data: { partnerId: null },
+            })
+          );
+        }
+      }
+
+      await prisma.$transaction(updates);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Partner cleared successfully',
+      });
+    }
+
+    // Find the partner's registration
+    const partnerRegistration = tournament.registrations.find(r => r.id === partnerRegistrationId);
+    if (!partnerRegistration) {
+      return res.status(404).json({ success: false, message: 'Partner registration not found' });
+    }
+
+    // Can't partner with yourself
+    if (registration.userId === partnerRegistration.userId) {
+      return res.status(400).json({ success: false, message: 'Cannot partner with yourself' });
+    }
+
+    // Build updates array - clear old partners first, then set new ones
+    const updates = [];
+
+    // Clear old partner of registration if exists
+    if (registration.partnerId) {
+      const oldPartnerReg = tournament.registrations.find(r => r.userId === registration.partnerId);
+      if (oldPartnerReg && oldPartnerReg.partnerId === registration.userId) {
+        updates.push(
+          prisma.registration.update({
+            where: { id: oldPartnerReg.id },
+            data: { partnerId: null },
+          })
+        );
+      }
+    }
+
+    // Clear old partner of new partner if exists
+    if (partnerRegistration.partnerId) {
+      const oldPartnerReg = tournament.registrations.find(r => r.userId === partnerRegistration.partnerId);
+      if (oldPartnerReg && oldPartnerReg.partnerId === partnerRegistration.userId) {
+        updates.push(
+          prisma.registration.update({
+            where: { id: oldPartnerReg.id },
+            data: { partnerId: null },
+          })
+        );
+      }
+    }
+
+    // Set new partnership
+    updates.push(
+      prisma.registration.update({
+        where: { id: registrationId },
+        data: { partnerId: partnerRegistration.userId },
+      }),
+      prisma.registration.update({
+        where: { id: partnerRegistrationId },
+        data: { partnerId: registration.userId },
+      })
+    );
+
+    await prisma.$transaction(updates);
+
+    res.status(200).json({
+      success: true,
+      message: `${registration.user.fullName || registration.user.username} paired with ${partnerRegistration.user.fullName || partnerRegistration.user.username}`,
+    });
+  } catch (error) {
+    console.error('Assign partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error assigning partner',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -2524,4 +2762,6 @@ module.exports = {
   shuffleGroups,
   roundRobinToKnockout,
   declareWinners,
+  getPotentialPartners,
+  assignPartner,
 };

@@ -143,6 +143,9 @@ export const tournamentAPI = {
   // Round Robin completion endpoints
   roundRobinToKnockout: (id, advancePlayers) => api.post(`/tournaments/${id}/round-robin-to-knockout`, { advancePlayers }),
   declareWinners: (id) => api.post(`/tournaments/${id}/declare-winners`),
+  // Doubles partner selection
+  getPotentialPartners: (id, search) => api.get(`/tournaments/${id}/potential-partners`, { params: { search } }),
+  assignPartner: (tournamentId, registrationId, partnerRegistrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-partner`, { partnerRegistrationId }),
 };
 
 // Match APIs

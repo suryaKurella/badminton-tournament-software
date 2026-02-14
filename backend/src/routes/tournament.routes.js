@@ -25,6 +25,8 @@ const {
   shuffleGroups,
   roundRobinToKnockout,
   declareWinners,
+  getPotentialPartners,
+  assignPartner,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 
@@ -37,6 +39,7 @@ router.put('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updateTourn
 router.delete('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), deleteTournament);
 router.post('/:id/register', protect, registerForTournament);
 router.delete('/:id/register', protect, deregisterFromTournament);
+router.get('/:id/potential-partners', protect, getPotentialPartners);
 router.put('/:id/registrations/approve-all', protect, approveAllPendingRegistrations);
 router.put('/:id/registrations/:registrationId/approve', protect, approveRegistration);
 router.put('/:id/registrations/:registrationId/reject', protect, rejectRegistration);
@@ -55,6 +58,7 @@ router.post('/:id/complete-group-stage', protect, authorize('ROOT', 'ADMIN', 'OR
 // Manual group assignment routes
 router.get('/:id/group-assignments', optionalAuth, getGroupAssignments);
 router.put('/:id/registrations/:registrationId/assign-group', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), assignToGroup);
+router.put('/:id/registrations/:registrationId/assign-partner', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), assignPartner);
 router.post('/:id/auto-assign-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), autoAssignGroups);
 router.post('/:id/shuffle-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), shuffleGroups);
 

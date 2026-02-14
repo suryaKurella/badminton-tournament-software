@@ -820,8 +820,18 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
 
     // If doubles/mixed tournament and no teams, create teams from registrations with partners
     if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length === 0) {
+      console.log('=== DOUBLES TEAM CREATION ===');
+      console.log('Total registrations:', tournament.registrations.length);
+      console.log('Registrations:', tournament.registrations.map(r => ({
+        userId: r.userId,
+        userName: r.user?.fullName || r.user?.username,
+        partnerId: r.partnerId,
+      })));
+
       // Get registrations that have partners
       const pairedRegistrations = tournament.registrations.filter(reg => reg.partnerId);
+      console.log('Registrations with partnerId set:', pairedRegistrations.length);
+
       const processedUserIds = new Set();
       const teamsToCreate = [];
 
@@ -877,17 +887,26 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         }
       }
 
+      console.log('Teams to create:', teamsToCreate.length);
+      console.log('Unprocessed registrations:', tournament.registrations.filter(r => !processedUserIds.has(r.userId)).length);
+
       if (teamsToCreate.length > 0) {
         participants = await Promise.all(
           teamsToCreate.map(async (teamData) => {
             return await prisma.team.create({ data: teamData });
           })
         );
+        console.log('Created teams:', participants.length);
       }
     }
 
     if (participants.length < 2) {
-      throw new Error('Need at least 2 participants to generate bracket');
+      const regCount = tournament.registrations?.length || 0;
+      const tournamentType = tournament.tournamentType;
+      if (tournamentType === 'DOUBLES' || tournamentType === 'MIXED') {
+        throw new Error(`Need at least 2 teams (4 players) for doubles. You have ${regCount} registrations but couldn't form enough teams. Make sure partners are selected from registered users.`);
+      }
+      throw new Error(`Need at least 2 participants to generate bracket. Found ${participants.length}.`);
     }
 
     // Generate bracket based on format
