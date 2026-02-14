@@ -274,12 +274,12 @@ function calculateLosersBracketPositions(round, winnersRounds) {
 }
 
 /**
- * Generate round robin bracket
- * All participants play each other once - simple pairwise approach
+ * Generate round robin bracket using the circle method
+ * Each player appears exactly once per round
  */
 async function generateRoundRobinBracket(tournamentId, participants, seedingMethod) {
   const seededParticipants = await seedParticipants(participants, seedingMethod);
-  const n = seededParticipants.length;
+  let n = seededParticipants.length;
 
   if (n < 2) {
     return { bracketNodes: [], matchesToCreate: [] };
@@ -288,24 +288,42 @@ async function generateRoundRobinBracket(tournamentId, participants, seedingMeth
   const bracketNodes = [];
   const matchesToCreate = [];
 
-  // Simple pairwise matching - every team plays every other team once
-  // This guarantees no duplicates and no team playing itself
-  let matchCount = 0;
-  const matchesPerRound = Math.floor(n / 2);
+  // Circle method for round robin scheduling
+  // If odd number of players, add a "bye" placeholder
+  const players = [...seededParticipants];
+  const hasBye = n % 2 !== 0;
+  if (hasBye) {
+    players.push(null); // null represents a bye
+    n = players.length;
+  }
 
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const team1 = seededParticipants[i];
-      const team2 = seededParticipants[j];
+  const numRounds = n - 1;
+  const matchesPerRound = n / 2;
 
-      // Calculate round number (distribute matches across rounds)
-      const roundNumber = Math.floor(matchCount / Math.max(matchesPerRound, 1)) + 1;
-      const position = matchCount % Math.max(matchesPerRound, 1);
+  // Circle method: fix first player, rotate the rest
+  for (let round = 0; round < numRounds; round++) {
+    for (let match = 0; match < matchesPerRound; match++) {
+      const home = match;
+      const away = n - 1 - match;
+
+      // Get actual player indices after rotation
+      const homeIdx = home === 0 ? 0 : ((home - 1 + round) % (n - 1)) + 1;
+      const awayIdx = away === 0 ? 0 : ((away - 1 + round) % (n - 1)) + 1;
+
+      const team1 = players[homeIdx];
+      const team2 = players[awayIdx];
+
+      // Skip if either team is a bye (null)
+      if (team1 === null || team2 === null) {
+        continue;
+      }
+
+      const roundNumber = round + 1;
 
       const node = {
         tournamentId,
         roundNumber,
-        position,
+        position: match,
         bracketType: 'MAIN',
       };
 
@@ -317,7 +335,6 @@ async function generateRoundRobinBracket(tournamentId, participants, seedingMeth
       });
 
       bracketNodes.push(node);
-      matchCount++;
     }
   }
 

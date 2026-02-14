@@ -26,7 +26,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link
             to="/tournaments"
-            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-900 dark:text-white hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 min-w-max"
             onClick={closeMobileMenu}
           >
             <span className="text-2xl">🏸</span>
@@ -99,7 +99,7 @@ const Navbar = () => {
           </div>
 
           {/* Mobile menu button */}
-          <div className="flex md:hidden items-center gap-3">
+          <div className="flex md:hidden items-center gap-2 shrink-0">
             <button
               onClick={toggleTheme}
               className="glass-button p-2 text-xl"

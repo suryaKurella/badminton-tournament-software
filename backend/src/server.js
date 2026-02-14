@@ -62,10 +62,11 @@ app.use(
   })
 );
 
-// Rate limiting
+// Rate limiting - higher limits for development
+const isDev = process.env.NODE_ENV !== 'production';
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // 500 requests per 15 minutes
+  max: isDev ? 5000 : 500, // 5000 in dev, 500 in production
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
@@ -73,7 +74,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 failed auth attempts per 15 minutes
+  max: isDev ? 100 : 20, // 100 in dev, 20 in production
   message: 'Too many authentication attempts, please try again later',
   skipSuccessfulRequests: true,
 });

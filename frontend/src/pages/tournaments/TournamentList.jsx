@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Pencil, LayoutGrid, List, MapPin, Calendar, Users, Building2 } from 'lucide-react';
 import { tournamentAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,7 @@ import { ConfirmationModal, StatusBadge, LoadingSpinner, Button, IconButton, Tou
 const TournamentList = () => {
   const { isOrganizer, isRoot, loading: authLoading } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -241,14 +242,17 @@ const TournamentList = () => {
             <div className="absolute bottom-4 right-4 flex gap-2 z-10">
               {/* Edit Button - For organizers */}
               {isOrganizer && (
-                <Link
-                  to={`/tournaments/${tournament.id}/edit`}
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/tournaments/${tournament.id}/edit`);
+                  }}
                   className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                   title="Edit tournament"
                 >
                   <Pencil size={16} />
-                </Link>
+                </button>
               )}
               {/* Delete Button - Only for ROOT users */}
               {isRoot && (
@@ -333,14 +337,17 @@ const TournamentList = () => {
               {/* Action Buttons */}
               <div className="flex gap-2 sm:ml-2">
                 {isOrganizer && (
-                  <Link
-                    to={`/tournaments/${tournament.id}/edit`}
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/tournaments/${tournament.id}/edit`);
+                    }}
                     className="p-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                     title="Edit tournament"
                   >
                     <Pencil size={14} />
-                  </Link>
+                  </button>
                 )}
                 {isRoot && (
                   <IconButton

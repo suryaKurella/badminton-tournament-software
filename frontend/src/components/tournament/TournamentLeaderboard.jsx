@@ -72,10 +72,10 @@ const TournamentLeaderboard = ({ tournamentId }) => {
               W-L
             </th>
             <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
-              Win Rate
-            </th>
-            <th className="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
               Points
+            </th>
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+              Win Rate
             </th>
           </tr>
         </thead>
@@ -130,6 +130,11 @@ const TournamentLeaderboard = ({ tournamentId }) => {
                   <span className="text-red-600 dark:text-red-400 font-semibold">{player.matchesLost || 0}</span>
                 </td>
 
+                {/* Points */}
+                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                  <span className="text-gray-900 dark:text-white font-semibold">{player.pointsScored || 0}</span>
+                </td>
+
                 {/* Win Rate */}
                 <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
                   <div className="flex flex-col items-center gap-1">
@@ -140,16 +145,6 @@ const TournamentLeaderboard = ({ tournamentId }) => {
                         style={{ width: `${winRate}%` }}
                       />
                     </div>
-                  </div>
-                </td>
-
-                {/* Points */}
-                <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-2">
-                    <span className="text-xl sm:text-2xl font-bold text-brand-blue">
-                      {player.globalRankingPoints || 0}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">pts</span>
                   </div>
                 </td>
               </tr>

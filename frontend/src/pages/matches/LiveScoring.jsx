@@ -111,7 +111,8 @@ const LiveScoring = () => {
         const g1t2 = parseInt(manualScores.game1.team2);
         games.push({ team1: g1t1, team2: g1t2 });
         if (g1t1 > g1t2) team1Wins++;
-        else team2Wins++;
+        else if (g1t2 > g1t1) team2Wins++;
+        // If equal, neither wins the game
       }
 
       // Game 2
@@ -120,7 +121,7 @@ const LiveScoring = () => {
         const g2t2 = parseInt(manualScores.game2.team2);
         games.push({ team1: g2t1, team2: g2t2 });
         if (g2t1 > g2t2) team1Wins++;
-        else team2Wins++;
+        else if (g2t2 > g2t1) team2Wins++;
       }
 
       // Game 3
@@ -129,7 +130,7 @@ const LiveScoring = () => {
         const g3t2 = parseInt(manualScores.game3.team2);
         games.push({ team1: g3t1, team2: g3t2 });
         if (g3t1 > g3t2) team1Wins++;
-        else team2Wins++;
+        else if (g3t2 > g3t1) team2Wins++;
       }
 
       if (games.length === 0) {
@@ -142,8 +143,18 @@ const LiveScoring = () => {
       console.log('Games array:', games);
       console.log('Team1 wins:', team1Wins, 'Team2 wins:', team2Wins);
 
-      // Determine winner
-      const winnerId = team1Wins > team2Wins ? match.team1Id : match.team2Id;
+      // Determine winner - must have a clear winner
+      let winnerId;
+      if (team1Wins > team2Wins) {
+        winnerId = match.team1Id;
+      } else if (team2Wins > team1Wins) {
+        winnerId = match.team2Id;
+      } else {
+        // Tie - shouldn't happen in badminton, but handle gracefully
+        toast.error('Match is tied. Please enter a deciding game.');
+        setIsProcessing(false);
+        return;
+      }
       console.log('Winner ID:', winnerId);
 
       const requestData = {

@@ -46,6 +46,20 @@ This app can be installed on your device for a native app-like experience.
 | **Round Robin** | Every participant plays each other |
 | **Group Knockout** | Group stage followed by knockout rounds |
 
+## Tournament Leaderboard Sorting
+
+Players in the tournament leaderboard are ranked using the following criteria (in order of priority):
+
+| Priority | Criteria | Description |
+|----------|----------|-------------|
+| 1 | Matches Won | Most wins ranks higher |
+| 2 | Win Rate | Higher win percentage ranks higher |
+| 3 | Fewer Losses | Fewer losses ranks higher |
+| 4 | Points Scored | Total points scored across all games |
+| 5 | Name (Natural Sort) | Alphabetical with numeric awareness (e.g., "Player 4" < "Player 10") |
+
+This ensures deterministic and fair ranking even when players have identical performance metrics.
+
 ## User Roles
 
 | Feature | ROOT | ADMIN | ORGANIZER | PLAYER | SPECTATOR |

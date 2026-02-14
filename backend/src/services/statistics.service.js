@@ -496,7 +496,23 @@ async function getTournamentLeaderboard(tournamentId) {
     const playerStats = {};
 
     matches.forEach((match) => {
-      const processTeam = (team, isWinner) => {
+      // Calculate points from team1Score and team2Score (stored as comma-separated strings like "21,15,0")
+      let team1Points = 0;
+      let team2Points = 0;
+
+      // Parse team1Score
+      if (match.team1Score && typeof match.team1Score === 'string') {
+        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+        team1Points = scores.reduce((sum, score) => sum + score, 0);
+      }
+
+      // Parse team2Score
+      if (match.team2Score && typeof match.team2Score === 'string') {
+        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+        team2Points = scores.reduce((sum, score) => sum + score, 0);
+      }
+
+      const processTeam = (team, isWinner, pointsFor, pointsAgainst) => {
         // Use Set to avoid counting same player twice in singles (player1Id === player2Id)
         const uniquePlayerIds = [...new Set([team.player1Id, team.player2Id])];
         uniquePlayerIds.forEach((playerId) => {
@@ -506,10 +522,14 @@ async function getTournamentLeaderboard(tournamentId) {
               matchesWon: 0,
               matchesLost: 0,
               totalMatches: 0,
+              pointsScored: 0,
+              pointsConceded: 0,
             };
           }
 
           playerStats[playerId].totalMatches++;
+          playerStats[playerId].pointsScored += pointsFor;
+          playerStats[playerId].pointsConceded += pointsAgainst;
           if (isWinner) {
             playerStats[playerId].matchesWon++;
           } else {
@@ -518,8 +538,8 @@ async function getTournamentLeaderboard(tournamentId) {
         });
       };
 
-      processTeam(match.team1, match.winnerId === match.team1Id);
-      processTeam(match.team2, match.winnerId === match.team2Id);
+      processTeam(match.team1, match.winnerId === match.team1Id, team1Points, team2Points);
+      processTeam(match.team2, match.winnerId === match.team2Id, team2Points, team1Points);
     });
 
     // Get player details and global stats
@@ -548,12 +568,29 @@ async function getTournamentLeaderboard(tournamentId) {
       })
     );
 
-    // Sort by matches won, then by global ranking points
+    // Sort by matches won, then by win rate, then by fewer losses, then by points scored, then alphabetically
     playersArray.sort((a, b) => {
+      // 1. Most matches won
       if (b.matchesWon !== a.matchesWon) {
         return b.matchesWon - a.matchesWon;
       }
-      return b.globalRankingPoints - a.globalRankingPoints;
+      // 2. Higher win rate
+      if (b.winRate !== a.winRate) {
+        return b.winRate - a.winRate;
+      }
+      // 3. Fewer losses
+      if (a.matchesLost !== b.matchesLost) {
+        return a.matchesLost - b.matchesLost;
+      }
+      // 4. More points scored
+      if (b.pointsScored !== a.pointsScored) {
+        return b.pointsScored - a.pointsScored;
+      }
+      // 5. Natural sort by name (final deterministic tiebreaker)
+      // Handles numbers in names correctly: "Player 4" < "Player 7" < "Player 10"
+      const nameA = (a.user?.fullName || a.user?.username || '').toLowerCase();
+      const nameB = (b.user?.fullName || b.user?.username || '').toLowerCase();
+      return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
     });
 
     return {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { X, ChevronDown, Search } from 'lucide-react';
+import { X, ChevronDown, Search, ArrowLeft } from 'lucide-react';
 import { tournamentAPI, matchAPI, clubAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -233,6 +233,13 @@ const TournamentEdit = () => {
   return (
     <div className="w-full">
       <div className="mb-6 sm:mb-8 pb-4 border-b-2 border-gray-200 dark:border-slate-700">
+        <button
+          onClick={() => navigate(`/tournaments/${id}`)}
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-3 transition-colors"
+        >
+          <ArrowLeft size={20} />
+          <span className="text-sm font-medium">Back to Tournament</span>
+        </button>
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">Edit Tournament</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Update the tournament details</p>
       </div>
