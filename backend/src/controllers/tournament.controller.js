@@ -1691,6 +1691,7 @@ const resetTournament = async (req, res) => {
           pausedAt: null,
           startedAt: null, // Reset the started timestamp
           totalPausedTime: 0,
+          groupStageComplete: false, // Reset group stage / knockout progression flag
         },
       });
     });
@@ -2270,6 +2271,233 @@ const shuffleGroups = async (req, res) => {
   }
 };
 
+// @desc    Convert Round Robin to knockout stage
+// @route   POST /api/tournaments/:id/round-robin-to-knockout
+// @access  Private (Organizer/Admin only)
+const roundRobinToKnockout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { advancePlayers = 4 } = req.body;
+
+    // Validate advancePlayers
+    if (![2, 4, 8].includes(advancePlayers)) {
+      return res.status(400).json({
+        success: false,
+        message: 'advancePlayers must be 2, 4, or 8',
+      });
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        teams: true,
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check authorization
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this tournament',
+      });
+    }
+
+    if (tournament.format !== 'ROUND_ROBIN') {
+      return res.status(400).json({
+        success: false,
+        message: 'This tournament is not Round Robin format',
+      });
+    }
+
+    if (tournament.groupStageComplete) {
+      return res.status(400).json({
+        success: false,
+        message: 'Knockout stage has already been created',
+      });
+    }
+
+    // Check if there are enough players for the selected playoff size
+    const teamCount = tournament.teams.length;
+    if (teamCount < advancePlayers) {
+      return res.status(400).json({
+        success: false,
+        message: `Not enough players for playoffs. You have ${teamCount} players but selected Top ${advancePlayers}. Please choose a smaller playoff size or use "Declare Winners" instead.`,
+      });
+    }
+
+    const result = await bracketService.completeRoundRobinToKnockout(id, advancePlayers);
+
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:knockoutCreated', {
+        tournamentId: id,
+        qualifiedTeams: result.data.qualifiedTeams,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Knockout bracket created with top ${advancePlayers} players`,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error('Round robin to knockout error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error creating knockout bracket',
+    });
+  }
+};
+
+// @desc    Declare winners for Round Robin tournament
+// @route   POST /api/tournaments/:id/declare-winners
+// @access  Private (Organizer/Admin only)
+const declareWinners = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        teams: true,
+        matches: {
+          include: {
+            team1: true,
+            team2: true,
+          },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check authorization
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this tournament',
+      });
+    }
+
+    if (tournament.format !== 'ROUND_ROBIN') {
+      return res.status(400).json({
+        success: false,
+        message: 'This endpoint is only for Round Robin tournaments',
+      });
+    }
+
+    // Check all matches are completed
+    const incompleteMatches = tournament.matches.filter(m => m.matchStatus !== 'COMPLETED').length;
+    if (incompleteMatches > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `${incompleteMatches} matches are not yet completed`,
+      });
+    }
+
+    // Calculate standings
+    const teamStats = {};
+    tournament.teams.forEach((team) => {
+      teamStats[team.id] = {
+        team,
+        wins: 0,
+        losses: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+      };
+    });
+
+    tournament.matches.forEach((match) => {
+      if (match.matchStatus !== 'COMPLETED' || !match.winnerId) return;
+
+      const stats1 = teamStats[match.team1Id];
+      const stats2 = teamStats[match.team2Id];
+
+      if (!stats1 || !stats2) return;
+
+      if (match.winnerId === match.team1Id) {
+        stats1.wins++;
+        stats2.losses++;
+      } else {
+        stats2.wins++;
+        stats1.losses++;
+      }
+
+      if (match.team1Score && typeof match.team1Score === 'string') {
+        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+        stats1.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+      }
+      if (match.team2Score && typeof match.team2Score === 'string') {
+        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+        stats2.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+      }
+    });
+
+    // Sort and get top 3
+    const sortedTeams = Object.values(teamStats).sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      const aDiff = a.pointsFor - a.pointsAgainst;
+      const bDiff = b.pointsFor - b.pointsAgainst;
+      if (bDiff !== aDiff) return bDiff - aDiff;
+      return b.pointsFor - a.pointsFor;
+    });
+
+    const winners = sortedTeams.slice(0, 3).map((stat, index) => ({
+      place: index + 1,
+      teamId: stat.team.id,
+      teamName: stat.team.teamName,
+      wins: stat.wins,
+      losses: stat.losses,
+    }));
+
+    // Mark tournament as completed
+    await prisma.tournament.update({
+      where: { id },
+      data: { status: 'COMPLETED' },
+    });
+
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:completed', {
+        tournamentId: id,
+        winners,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Winners declared and tournament completed',
+      data: { winners },
+    });
+  } catch (error) {
+    console.error('Declare winners error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error declaring winners',
+    });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -2294,4 +2522,6 @@ module.exports = {
   getGroupAssignments,
   autoAssignGroups,
   shuffleGroups,
+  roundRobinToKnockout,
+  declareWinners,
 };

@@ -30,6 +30,9 @@ const TournamentDetails = () => {
   const [expandedMatchId, setExpandedMatchId] = useState(null);
   const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const [showCompletedMatches, setShowCompletedMatches] = useState(false);
+  const [processingCompletion, setProcessingCompletion] = useState(false);
+  const [selectedAdvancePlayers, setSelectedAdvancePlayers] = useState(4);
+  const [roundRobinWinners, setRoundRobinWinners] = useState([]);
 
   useEffect(() => {
     console.log('=== TournamentDetails useEffect ===');
@@ -89,6 +92,23 @@ const TournamentDetails = () => {
     };
   }, [id, authLoading]);
 
+  // Fetch leaderboard for completed Round Robin tournaments
+  useEffect(() => {
+    if (tournament?.format === 'ROUND_ROBIN' && tournament?.status === 'COMPLETED') {
+      fetchRoundRobinWinners();
+    }
+  }, [tournament?.format, tournament?.status, id]);
+
+  // Auto-select a valid playoff size based on team count
+  useEffect(() => {
+    const teamCount = tournament?.teams?.length || 0;
+    if (teamCount < selectedAdvancePlayers) {
+      // Select the highest valid option
+      if (teamCount >= 4) setSelectedAdvancePlayers(4);
+      else if (teamCount >= 2) setSelectedAdvancePlayers(2);
+    }
+  }, [tournament?.teams?.length]);
+
   const fetchTournamentDetails = async () => {
     try {
       console.log('=== Fetching tournament ===');
@@ -113,6 +133,21 @@ const TournamentDetails = () => {
       setMatches(response.data.data);
     } catch (error) {
       console.error('Error fetching matches:', error);
+    }
+  };
+
+  // Fetch leaderboard for Round Robin winners podium
+  const fetchRoundRobinWinners = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/statistics/tournament/${id}/leaderboard`
+      );
+      const data = await response.json();
+      if (data.success && data.data) {
+        setRoundRobinWinners(data.data.slice(0, 3)); // Top 3
+      }
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
     }
   };
 
@@ -311,6 +346,34 @@ const TournamentDetails = () => {
       toast.error(error.response?.data?.message || 'Failed to toggle registration');
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  // Round Robin completion handlers - simple direct API calls like GroupStageView
+  const handleCreateKnockout = async () => {
+    setProcessingCompletion(true);
+    try {
+      const response = await tournamentAPI.roundRobinToKnockout(id, selectedAdvancePlayers);
+      toast.success(response.data.message || 'Knockout bracket created successfully!');
+      fetchTournamentDetails();
+      fetchMatches();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create knockout bracket');
+    } finally {
+      setProcessingCompletion(false);
+    }
+  };
+
+  const handleDeclareWinners = async () => {
+    setProcessingCompletion(true);
+    try {
+      const response = await tournamentAPI.declareWinners(id);
+      toast.success(response.data.message || 'Winners declared! Tournament completed.');
+      fetchTournamentDetails();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to declare winners');
+    } finally {
+      setProcessingCompletion(false);
     }
   };
 
@@ -811,6 +874,58 @@ const TournamentDetails = () => {
         );
       })()}
 
+      {/* Round Robin Winners Podium - Show when tournament is completed */}
+      {tournament.format === 'ROUND_ROBIN' && tournament.status === 'COMPLETED' && roundRobinWinners.length > 0 && (
+        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold mb-6 text-gray-900 dark:text-white text-center">
+            Tournament Winners
+          </h2>
+
+          {/* Podium Display */}
+          <div className="flex items-end justify-center gap-2 sm:gap-4 mb-6">
+            {/* 2nd Place */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 sm:w-24 h-20 sm:h-28 bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 rounded-t-lg flex items-end justify-center pb-2">
+                <span className="text-2xl sm:text-4xl font-bold text-gray-600 dark:text-gray-300">2</span>
+              </div>
+              <div className="bg-gray-200 dark:bg-gray-600 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 truncate px-1">
+                  {roundRobinWinners[1]?.user?.fullName || roundRobinWinners[1]?.user?.username || 'TBD'}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Runner-up</p>
+              </div>
+            </div>
+
+            {/* 1st Place */}
+            <div className="flex flex-col items-center -mt-4">
+              <div className="text-3xl sm:text-4xl mb-1">👑</div>
+              <div className="w-20 sm:w-28 h-28 sm:h-36 bg-gradient-to-t from-yellow-500 to-yellow-400 dark:from-yellow-600 dark:to-yellow-500 rounded-t-lg flex items-end justify-center pb-2">
+                <span className="text-3xl sm:text-5xl font-bold text-yellow-800 dark:text-yellow-200">1</span>
+              </div>
+              <div className="bg-yellow-400 dark:bg-yellow-600 w-24 sm:w-32 py-2 sm:py-3 text-center rounded-b-lg">
+                <p className="text-xs sm:text-sm font-bold text-yellow-900 dark:text-yellow-100 truncate px-1">
+                  {roundRobinWinners[0]?.user?.fullName || roundRobinWinners[0]?.user?.username || 'TBD'}
+                </p>
+                <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300">Champion</p>
+              </div>
+            </div>
+
+            {/* 3rd Place */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 sm:w-24 h-16 sm:h-24 bg-gradient-to-t from-orange-400 to-orange-300 dark:from-orange-700 dark:to-orange-600 rounded-t-lg flex items-end justify-center pb-2">
+                <span className="text-2xl sm:text-4xl font-bold text-orange-800 dark:text-orange-200">3</span>
+              </div>
+              <div className="bg-orange-300 dark:bg-orange-700 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
+                <p className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-100 truncate px-1">
+                  {roundRobinWinners[2]?.user?.fullName || roundRobinWinners[2]?.user?.username || '-'}
+                </p>
+                <p className="text-[10px] sm:text-xs text-orange-700 dark:text-orange-400">3rd Place</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Manual Group Assignment for GROUP_KNOCKOUT tournaments before bracket generation */}
       {tournament.format === 'GROUP_KNOCKOUT' &&
        (tournament.status === 'OPEN' || tournament.status === 'DRAFT') &&
@@ -863,6 +978,88 @@ const TournamentDetails = () => {
           <TournamentLeaderboard tournamentId={id} />
         </div>
       )}
+
+      {/* Round Robin Completion Options */}
+      {tournament.format === 'ROUND_ROBIN' &&
+        tournament.status === 'ACTIVE' &&
+        !tournament.groupStageComplete &&
+        canManageStatus &&
+        matches.length > 0 &&
+        matches.every((m) => m.matchStatus === 'COMPLETED') && (
+          <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-brand-green/50">
+            <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 dark:text-white flex items-center gap-2">
+              <span>🏆</span> All Matches Completed!
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Choose how to complete this Round Robin tournament:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Declare Winners Option */}
+              <div className="glass-surface p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Declare Winners
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  End the tournament now. Top 3 players from the leaderboard will be declared as 1st, 2nd, and 3rd place winners.
+                </p>
+                <Button
+                  onClick={handleDeclareWinners}
+                  loading={processingCompletion}
+                  disabled={processingCompletion}
+                  variant="primary"
+                  className="w-full"
+                >
+                  🥇 Declare Winners
+                </Button>
+              </div>
+
+              {/* Create Knockout Option */}
+              <div className="glass-surface p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Create Playoff Rounds
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  Top players will advance to knockout rounds (Semi-Finals, Finals).
+                </p>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Players to advance:
+                  </label>
+                  <select
+                    value={selectedAdvancePlayers}
+                    onChange={(e) => setSelectedAdvancePlayers(Number(e.target.value))}
+                    className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                    disabled={processingCompletion}
+                  >
+                    <option value={2} disabled={(tournament.teams?.length || 0) < 2}>
+                      Top 2 (Final only){(tournament.teams?.length || 0) < 2 ? ' - Need 2+ players' : ''}
+                    </option>
+                    <option value={4} disabled={(tournament.teams?.length || 0) < 4}>
+                      Top 4 (Semi-Finals + Final){(tournament.teams?.length || 0) < 4 ? ` - Need 4+ players (have ${tournament.teams?.length || 0})` : ''}
+                    </option>
+                    <option value={8} disabled={(tournament.teams?.length || 0) < 8}>
+                      Top 8 (Quarter-Finals + Semi-Finals + Final){(tournament.teams?.length || 0) < 8 ? ` - Need 8+ players (have ${tournament.teams?.length || 0})` : ''}
+                    </option>
+                  </select>
+                  {(tournament.teams?.length || 0) < 4 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      You have {tournament.teams?.length || 0} player(s). Some playoff options are unavailable.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleCreateKnockout}
+                  loading={processingCompletion}
+                  disabled={processingCompletion}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  🎯 Create Playoffs
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {matches.length > 0 && (() => {
         // Split matches into active/upcoming and completed

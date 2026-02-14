@@ -140,6 +140,9 @@ export const tournamentAPI = {
   assignToGroup: (tournamentId, registrationId, groupName) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-group`, { groupName }),
   autoAssignGroups: (id) => api.post(`/tournaments/${id}/auto-assign-groups`),
   shuffleGroups: (id) => api.post(`/tournaments/${id}/shuffle-groups`),
+  // Round Robin completion endpoints
+  roundRobinToKnockout: (id, advancePlayers) => api.post(`/tournaments/${id}/round-robin-to-knockout`, { advancePlayers }),
+  declareWinners: (id) => api.post(`/tournaments/${id}/declare-winners`),
 };
 
 // Match APIs

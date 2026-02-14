@@ -23,6 +23,8 @@ const {
   getGroupAssignments,
   autoAssignGroups,
   shuffleGroups,
+  roundRobinToKnockout,
+  declareWinners,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 
@@ -55,5 +57,9 @@ router.get('/:id/group-assignments', optionalAuth, getGroupAssignments);
 router.put('/:id/registrations/:registrationId/assign-group', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), assignToGroup);
 router.post('/:id/auto-assign-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), autoAssignGroups);
 router.post('/:id/shuffle-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), shuffleGroups);
+
+// Round Robin completion routes
+router.post('/:id/round-robin-to-knockout', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), roundRobinToKnockout);
+router.post('/:id/declare-winners', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), declareWinners);
 
 module.exports = router;
