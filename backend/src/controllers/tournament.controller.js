@@ -3055,6 +3055,118 @@ const adminRegisterTeam = async (req, res) => {
   }
 };
 
+// @desc    Admin registers a single player directly
+// @route   POST /api/tournaments/:id/register-player
+// @access  Private (Organizer/Admin only)
+const adminRegisterPlayer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { playerId } = req.body;
+
+    if (!playerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'playerId is required',
+      });
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        createdById: true,
+        name: true,
+        tournamentType: true,
+        maxParticipants: true,
+        _count: {
+          select: { registrations: true },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only tournament organizers can register players',
+      });
+    }
+
+    if (tournament._count.registrations >= tournament.maxParticipants) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tournament is full',
+      });
+    }
+
+    const player = await prisma.user.findUnique({
+      where: { id: playerId },
+      select: { id: true, username: true, fullName: true },
+    });
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found',
+      });
+    }
+
+    const existingReg = await prisma.registration.findUnique({
+      where: {
+        userId_tournamentId: {
+          userId: playerId,
+          tournamentId: id,
+        },
+      },
+    });
+
+    if (existingReg) {
+      return res.status(400).json({
+        success: false,
+        message: `${player.fullName || player.username} is already registered for this tournament`,
+      });
+    }
+
+    const registration = await prisma.registration.create({
+      data: {
+        userId: playerId,
+        tournamentId: id,
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'PENDING',
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, fullName: true, email: true },
+        },
+      },
+    });
+
+    const playerName = player.fullName || player.username;
+
+    res.status(201).json({
+      success: true,
+      message: `${playerName} registered successfully`,
+      data: registration,
+    });
+  } catch (error) {
+    console.error('Admin register player error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error registering player',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -3085,4 +3197,5 @@ module.exports = {
   assignPartner,
   approveTeamWithPendingPartner,
   adminRegisterTeam,
+  adminRegisterPlayer,
 };

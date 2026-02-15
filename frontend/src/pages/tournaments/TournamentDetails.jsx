@@ -35,6 +35,7 @@ const TournamentDetails = () => {
   const [roundRobinWinners, setRoundRobinWinners] = useState([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState(null);
   const [addTeamModal, setAddTeamModal] = useState({ isOpen: false, player1Id: '', player2Id: '', loading: false });
+  const [addPlayerModal, setAddPlayerModal] = useState({ isOpen: false, playerId: '', loading: false });
   const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
@@ -519,6 +520,34 @@ const TournamentDetails = () => {
     }
   };
 
+  const openAddPlayerModal = async () => {
+    try {
+      const response = await userAPI.getAll({ limit: 500 });
+      setAllUsers(response.data.data || []);
+      setAddPlayerModal({ isOpen: true, playerId: '', loading: false });
+    } catch (error) {
+      toast.error('Failed to load users');
+    }
+  };
+
+  const handleRegisterPlayer = async () => {
+    if (!addPlayerModal.playerId) {
+      toast.error('Please select a player');
+      return;
+    }
+
+    setAddPlayerModal(prev => ({ ...prev, loading: true }));
+    try {
+      const response = await tournamentAPI.registerPlayer(id, addPlayerModal.playerId);
+      toast.success(response.data.message);
+      setAddPlayerModal({ isOpen: false, playerId: '', loading: false });
+      fetchTournamentDetails();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to register player');
+      setAddPlayerModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const handleDeleteTournament = () => {
     setConfirmModal({
       isOpen: true,
@@ -852,7 +881,7 @@ const TournamentDetails = () => {
         </div>
       </div>
 
-      {tournament.registrations && tournament.registrations.length > 0 && (
+      {tournament.registrations && (tournament.registrations.length > 0 || canManageStatus) && (
         <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
           <div
             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer"
@@ -869,6 +898,15 @@ const TournamentDetails = () => {
               )}
             </div>
             <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+              {canManageStatus && tournament.tournamentType === 'SINGLES' && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+                <button
+                  onClick={openAddPlayerModal}
+                  className="px-4 py-2 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white border border-brand-blue/20 hover:border-brand-blue rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  <span>+</span>
+                  Add Player
+                </button>
+              )}
               {canManageStatus && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
                 <button
                   onClick={openAddTeamModal}
@@ -1024,7 +1062,7 @@ const TournamentDetails = () => {
                         <span className="font-medium text-gray-900 dark:text-white truncate">
                           {reg.user.fullName || reg.user.username}
                         </span>
-                        <StatusBadge status={reg.registrationStatus} />
+                        {canManageStatus && <StatusBadge status={reg.registrationStatus} />}
                         {isDoublesFormat && (
                           selectedByName ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
@@ -1733,6 +1771,54 @@ const TournamentDetails = () => {
         cancelText={confirmModal.cancelText}
         type={confirmModal.type || 'primary'}
       />
+
+      {/* Add Player Modal */}
+      {addPlayerModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Register Player
+            </h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Player
+              </label>
+              <select
+                value={addPlayerModal.playerId}
+                onChange={(e) => setAddPlayerModal(prev => ({ ...prev, playerId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                disabled={addPlayerModal.loading}
+              >
+                <option value="">Select player...</option>
+                {allUsers
+                  .filter(u => !tournament.registrations?.some(r => r.userId === u.id))
+                  .map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.fullName || u.username}
+                    </option>
+                  ))
+                }
+              </select>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setAddPlayerModal({ isOpen: false, playerId: '', loading: false })}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                disabled={addPlayerModal.loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegisterPlayer}
+                disabled={addPlayerModal.loading || !addPlayerModal.playerId}
+                className="flex-1 px-4 py-2 bg-brand-blue hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addPlayerModal.loading ? 'Registering...' : 'Register Player'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Team Modal */}
       {addTeamModal.isOpen && (

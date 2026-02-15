@@ -123,6 +123,7 @@ export const tournamentAPI = {
   delete: (id) => api.delete(`/tournaments/${id}`),
   register: (id, data) => api.post(`/tournaments/${id}/register`, data),
   registerTeam: (id, player1Id, player2Id) => api.post(`/tournaments/${id}/register-team`, { player1Id, player2Id }),
+  registerPlayer: (id, playerId) => api.post(`/tournaments/${id}/register-player`, { playerId }),
   deregister: (id) => api.delete(`/tournaments/${id}/register`),
   approveRegistration: (tournamentId, registrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/approve`),
   approveTeamWithPendingPartner: (tournamentId, registrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/approve-team`),
