@@ -622,6 +622,21 @@ const registerForTournament = async (req, res) => {
       });
     }
 
+    // If this player was selected as a partner by someone else, clear that old selection
+    // (since this player is now choosing their own partner)
+    if (partnerId) {
+      await prisma.registration.updateMany({
+        where: {
+          tournamentId: id,
+          partnerId: req.user.id,
+          userId: { not: partnerId }, // Don't clear if it's a mutual selection
+        },
+        data: {
+          partnerId: null,
+        },
+      });
+    }
+
     const registration = await prisma.registration.create({
       data: {
         userId: req.user.id,
@@ -648,6 +663,28 @@ const registerForTournament = async (req, res) => {
         },
       },
     });
+
+    // If mutual selection (both chose each other), auto-link the partner's registration
+    if (partnerId) {
+      const partnerReg = await prisma.registration.findUnique({
+        where: {
+          userId_tournamentId: {
+            userId: partnerId,
+            tournamentId: id,
+          },
+        },
+      });
+
+      if (partnerReg && partnerReg.partnerId === req.user.id) {
+        // Mutual selection — no extra action needed, both already point to each other
+      } else if (partnerReg && !partnerReg.partnerId) {
+        // Partner registered but hadn't picked anyone — link them back
+        await prisma.registration.update({
+          where: { id: partnerReg.id },
+          data: { partnerId: req.user.id },
+        });
+      }
+    }
 
     res.status(201).json({
       success: true,
