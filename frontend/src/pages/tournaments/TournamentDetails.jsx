@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { tournamentAPI, matchAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -616,6 +616,13 @@ const TournamentDetails = () => {
       <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="flex-1">
+            <button
+              onClick={() => navigate('/tournaments')}
+              className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Tournaments
+            </button>
             <h1 className="text-2xl sm:text-3xl font-bold mb-3 text-gray-900 dark:text-white">
               {tournament.name}
             </h1>
