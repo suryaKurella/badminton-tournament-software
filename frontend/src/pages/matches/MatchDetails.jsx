@@ -4,6 +4,7 @@ import { matchAPI, tournamentAPI, userAPI } from '../../services/api';
 import socketService from '../../services/socket';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useFeatureFlag } from '../../context/FeatureFlagContext';
 import { LoadingSpinner, StatusBadge, ConfirmationModal, Button } from '../../components/common';
 import { PlayCircle, Pencil, UserX, AlertTriangle, UserPlus, Search, X } from 'lucide-react';
 
@@ -11,6 +12,7 @@ const MatchDetails = () => {
   const { id } = useParams();
   const { dbUser, isOrganizer } = useAuth();
   const toast = useToast();
+  const liveScoringEnabled = useFeatureFlag('live_scoring');
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [walkoverModal, setWalkoverModal] = useState({
@@ -29,11 +31,21 @@ const MatchDetails = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [replacing, setReplacing] = useState(false);
 
+  // Check if user is a player in this match
+  const isMatchParticipant = dbUser && match && (
+    match.team1?.player1Id === dbUser.id ||
+    match.team1?.player2Id === dbUser.id ||
+    match.team2?.player1Id === dbUser.id ||
+    match.team2?.player2Id === dbUser.id
+  );
+
   // Check if user can score based on tournament settings
-  // Tournament must be ACTIVE, and either user is organizer or allowPlayerScoring is true
+  const scoringPermission = match?.tournament?.scoringPermission || 'ANYONE';
   const canScore = dbUser &&
     match?.tournament?.status === 'ACTIVE' &&
-    (isOrganizer || match?.tournament?.allowPlayerScoring !== false);
+    (isOrganizer ||
+      scoringPermission === 'ANYONE' ||
+      (scoringPermission === 'PARTICIPANTS' && isMatchParticipant));
 
   useEffect(() => {
     fetchMatch();
@@ -80,7 +92,7 @@ const MatchDetails = () => {
       const response = await matchAPI.getById(id);
       setMatch(response.data.data);
     } catch (error) {
-      console.error('Error fetching match:', error);
+      // Silently fail
     } finally {
       setLoading(false);
     }
@@ -143,7 +155,6 @@ const MatchDetails = () => {
       setWalkoverModal({ isOpen: false, noShowTeamId: null, noShowTeamName: '', winnerId: null });
       fetchMatch();
     } catch (error) {
-      console.error('Error awarding walkover:', error);
       toast.error(error.response?.data?.message || 'Failed to award walkover');
     }
   };
@@ -192,7 +203,6 @@ const MatchDetails = () => {
       );
       setSearchResults(filteredResults);
     } catch (error) {
-      console.error('Error searching users:', error);
       toast.error('Failed to search users');
     } finally {
       setSearchLoading(false);
@@ -212,7 +222,6 @@ const MatchDetails = () => {
       setSearchResults([]);
       fetchMatch();
     } catch (error) {
-      console.error('Error replacing player:', error);
       toast.error(error.response?.data?.message || 'Failed to replace player');
     } finally {
       setReplacing(false);
@@ -237,7 +246,7 @@ const MatchDetails = () => {
 
   return (
     <div className="w-full">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+      <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
         <Link
           to={`/tournaments/${match.tournament.id}`}
           className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium mb-4 transition-colors"
@@ -256,7 +265,7 @@ const MatchDetails = () => {
           </div>
 
           {/* Live Score Button for Organizers and Players in the match */}
-          {canScore && (match.matchStatus === 'UPCOMING' || match.matchStatus === 'LIVE' || match.matchStatus === 'COMPLETED') && (
+          {liveScoringEnabled && canScore && (match.matchStatus === 'UPCOMING' || match.matchStatus === 'LIVE' || match.matchStatus === 'COMPLETED') && (
             <Link
               to={`/matches/${id}/live-score`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-green to-green-600 text-white rounded-lg font-semibold hover:shadow-lg hover:scale-105 transition-all"
@@ -275,7 +284,7 @@ const MatchDetails = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+      <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
           <div
             className={`p-4 sm:p-6 rounded-lg ${
@@ -333,7 +342,7 @@ const MatchDetails = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {match.scheduledTime && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+          <div className="glass-card p-4">
             <strong className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
               Scheduled Time:
             </strong>
@@ -342,7 +351,7 @@ const MatchDetails = () => {
         )}
 
         {match.courtNumber && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+          <div className="glass-card p-4">
             <strong className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
               Court:
             </strong>
@@ -351,7 +360,7 @@ const MatchDetails = () => {
         )}
 
         {match.startTime && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+          <div className="glass-card p-4">
             <strong className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
               Start Time:
             </strong>
@@ -360,7 +369,7 @@ const MatchDetails = () => {
         )}
 
         {match.endTime && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+          <div className="glass-card p-4">
             <strong className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
               End Time:
             </strong>
@@ -426,7 +435,7 @@ const MatchDetails = () => {
 
       {/* Walkover & Replace Section for Organizers */}
       {isOrganizer && (match.matchStatus === 'UPCOMING' || match.matchStatus === 'LIVE') && !match.isWalkover && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 sm:p-6 space-y-6">
+        <div className="glass-card p-4 sm:p-6 space-y-6">
           {/* Walkover Section */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -506,7 +515,7 @@ const MatchDetails = () => {
       {replaceModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setReplaceModal({ isOpen: false, teamToReplaceId: null, teamToReplaceName: '' })} />
-          <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
+          <div className="relative glass-card rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-slate-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -539,10 +548,7 @@ const MatchDetails = () => {
 
               <div className="max-h-64 overflow-y-auto">
                 {searchLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
-                    <p className="text-gray-500 mt-2">Searching...</p>
-                  </div>
+                  <LoadingSpinner message="Searching..." />
                 ) : searchResults.length > 0 ? (
                   <div className="space-y-2">
                     {searchResults.map((user) => (

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import SingleEliminationBracket from './SingleEliminationBracket';
 import RoundRobinTable from './RoundRobinTable';
 import { useBracketUpdates } from '../../hooks';
+import api from '../../services/api';
+import { LoadingSpinner } from '../common';
 
 const BracketView = ({ tournament, onMatchClick, showSeeds = true }) => {
   const [localBracketData, setLocalBracketData] = useState(null);
@@ -33,17 +35,14 @@ const BracketView = ({ tournament, onMatchClick, showSeeds = true }) => {
   const fetchBracket = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/tournaments/${tournament.id}/bracket`);
-      const data = await response.json();
-
-      if (data.success) {
-        setLocalBracketData(data.data);
+      const response = await api.get(`/tournaments/${tournament.id}/bracket`);
+      if (response.data.success) {
+        setLocalBracketData(response.data.data);
       } else {
-        setError(data.message);
+        setError(response.data.message);
       }
     } catch (err) {
       setError('Failed to load bracket');
-      console.error('Error fetching bracket:', err);
     } finally {
       setLoading(false);
     }
@@ -52,11 +51,7 @@ const BracketView = ({ tournament, onMatchClick, showSeeds = true }) => {
   const bracketData = localBracketData;
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading bracket..." />;
   }
 
   if (error) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import { statisticsAPI } from '../../services/api';
 import socketService from '../../services/socket';
+import { LoadingSpinner } from '../common';
 
 const TournamentLeaderboard = ({ tournamentId, matches }) => {
   const [entries, setEntries] = useState([]);
@@ -35,9 +36,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
   const fetchLeaderboard = async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/statistics/tournament/${tournamentId}/leaderboard`
-      );
+      const response = await statisticsAPI.getTournamentLeaderboard(tournamentId);
 
       if (response.data.success) {
         setEntries(response.data.data || []);
@@ -46,7 +45,6 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
         setError(response.data.message || 'Failed to load leaderboard');
       }
     } catch (err) {
-      console.error('Error fetching tournament leaderboard:', err);
       setError('Failed to load leaderboard');
     } finally {
       setLoading(false);
@@ -74,11 +72,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading leaderboard..." />;
   }
 
   if (error) {

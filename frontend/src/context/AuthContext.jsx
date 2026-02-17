@@ -43,11 +43,8 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session ? 'has session' : 'no session');
-
       // Handle token refresh - update both session state and auth token
       if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed successfully');
         setSession(session);
         setAuthToken(session?.access_token);
         return;

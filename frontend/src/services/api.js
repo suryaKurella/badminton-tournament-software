@@ -28,32 +28,12 @@ const processQueue = (error, token = null) => {
 
 // Function to set auth token (called by AuthContext)
 export const setAuthToken = (token) => {
-  console.log('=== Setting Auth Token ===');
-  console.log('Token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'null');
-
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log('Authorization header set successfully');
-    console.log('Current headers:', api.defaults.headers.common);
   } else {
     delete api.defaults.headers.common['Authorization'];
-    console.log('Authorization header cleared');
   }
 };
-
-// Request interceptor for logging
-api.interceptors.request.use(
-  (config) => {
-    console.log('=== API Request ===');
-    console.log('URL:', config.url);
-    console.log('Method:', config.method);
-    console.log('Authorization header:', config.headers.Authorization ? 'Set (' + config.headers.Authorization.substring(0, 20) + '...)' : 'NOT SET');
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Response interceptor for error handling with token refresh
 api.interceptors.response.use(
@@ -147,6 +127,7 @@ export const tournamentAPI = {
   roundRobinToKnockout: (id, advancePlayers) => api.post(`/tournaments/${id}/round-robin-to-knockout`, { advancePlayers }),
   declareWinners: (id) => api.post(`/tournaments/${id}/declare-winners`),
   revertPlayoffs: (id) => api.post(`/tournaments/${id}/revert-playoffs`),
+  getLeaderboard: (id) => api.get(`/statistics/tournament/${id}/leaderboard`),
   // Doubles partner selection
   getPotentialPartners: (id, search) => api.get(`/tournaments/${id}/potential-partners`, { params: { search } }),
   assignPartner: (tournamentId, registrationId, partnerRegistrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-partner`, { partnerRegistrationId }),
@@ -173,6 +154,12 @@ export const userAPI = {
   delete: (id) => api.delete(`/users/${id}`),
 };
 
+// Statistics APIs
+export const statisticsAPI = {
+  getLeaderboard: (params) => api.get('/statistics/leaderboard', { params }),
+  getTournamentLeaderboard: (tournamentId) => api.get(`/statistics/tournament/${tournamentId}/leaderboard`),
+};
+
 // Club APIs
 export const clubAPI = {
   getAll: (params) => api.get('/clubs', { params }),
@@ -190,6 +177,13 @@ export const clubAPI = {
   updateMemberRole: (clubId, membershipId, role) => api.put(`/clubs/${clubId}/memberships/${membershipId}/role`, { role }),
   // Club tournaments
   getTournaments: (id, params) => api.get(`/clubs/${id}/tournaments`, { params }),
+};
+
+// Feature Flag APIs
+export const featureFlagAPI = {
+  getAll: () => api.get('/feature-flags'),
+  getAllAdmin: () => api.get('/feature-flags/admin'),
+  update: (name, enabled) => api.put(`/feature-flags/${name}`, { enabled }),
 };
 
 export default api;

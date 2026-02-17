@@ -17,6 +17,7 @@ const {
   deleteMatch,
 } = require('../controllers/match.controller');
 const { protect, authorize } = require('../middleware/supabaseAuth.middleware');
+const { requireFlag } = require('../middleware/featureFlag.middleware');
 
 const router = express.Router();
 
@@ -28,11 +29,11 @@ router.put('/:id/score', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYE
 router.put('/:id/start', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), startMatch);
 router.put('/:id/complete', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), completeMatch);
 router.put('/:id/walkover', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), awardWalkover);
-router.delete('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), deleteMatch);
+router.delete('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), requireFlag('match_deletion'), deleteMatch);
 
 // Live scoring endpoints
-router.post('/:id/score-point', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), recordPoint);
-router.post('/:id/undo-point', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), undoPoint);
+router.post('/:id/score-point', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), requireFlag('live_scoring'), recordPoint);
+router.post('/:id/undo-point', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), requireFlag('live_scoring'), undoPoint);
 router.get('/:id/current-score', getCurrentScore);
 router.get('/:id/timeline', getMatchTimeline);
 router.put('/:id/serving-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updateServingTeam);

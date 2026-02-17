@@ -88,7 +88,6 @@ const getAllClubs = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching clubs',
-      error: error.message,
     });
   }
 };
@@ -150,7 +149,6 @@ const getMyClubs = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching your clubs',
-      error: error.message,
     });
   }
 };
@@ -298,7 +296,6 @@ const getClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching club',
-      error: error.message,
     });
   }
 };
@@ -365,7 +362,6 @@ const createClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating club',
-      error: error.message,
     });
   }
 };
@@ -435,7 +431,6 @@ const updateClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating club',
-      error: error.message,
     });
   }
 };
@@ -489,7 +484,6 @@ const deleteClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deleting club',
-      error: error.message,
     });
   }
 };
@@ -576,7 +570,6 @@ const joinClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error joining club',
-      error: error.message,
     });
   }
 };
@@ -625,7 +618,6 @@ const leaveClub = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error leaving club',
-      error: error.message,
     });
   }
 };
@@ -710,7 +702,6 @@ const approveMembership = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error approving membership',
-      error: error.message,
     });
   }
 };
@@ -792,7 +783,6 @@ const rejectMembership = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error rejecting membership',
-      error: error.message,
     });
   }
 };
@@ -887,7 +877,6 @@ const removeMember = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error removing member',
-      error: error.message,
     });
   }
 };
@@ -986,7 +975,6 @@ const updateMemberRole = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating member role',
-      error: error.message,
     });
   }
 };
@@ -1070,7 +1058,6 @@ const getClubTournaments = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching club tournaments',
-      error: error.message,
     });
   }
 };

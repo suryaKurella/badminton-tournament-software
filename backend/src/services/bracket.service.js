@@ -822,16 +822,6 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
     // Calculate expected team count: each team needs 2 players
     const expectedTeamCount = Math.floor(tournament.registrations.length / 2);
     if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length < expectedTeamCount) {
-      console.log('=== DOUBLES TEAM CREATION ===');
-      console.log('Existing teams:', participants.length);
-      console.log('Expected teams:', expectedTeamCount);
-      console.log('Total registrations:', tournament.registrations.length);
-      console.log('Registrations:', tournament.registrations.map(r => ({
-        userId: r.userId,
-        userName: r.user?.fullName || r.user?.username,
-        partnerId: r.partnerId,
-      })));
-
       // Track users already in existing teams
       const usersInExistingTeams = new Set();
       for (const team of participants) {
@@ -840,13 +830,11 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
           usersInExistingTeams.add(team.player2Id);
         }
       }
-      console.log('Users already in teams:', usersInExistingTeams.size);
 
       // Get registrations that have partners and aren't already in teams
       const pairedRegistrations = tournament.registrations.filter(
         reg => reg.partnerId && !usersInExistingTeams.has(reg.userId)
       );
-      console.log('Registrations with partnerId set (not in teams):', pairedRegistrations.length);
 
       const processedUserIds = new Set(usersInExistingTeams);
       const teamsToCreate = [];
@@ -906,9 +894,6 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         }
       }
 
-      console.log('Teams to create:', teamsToCreate.length);
-      console.log('Unprocessed registrations:', tournament.registrations.filter(r => !processedUserIds.has(r.userId)).length);
-
       if (teamsToCreate.length > 0) {
         const newTeams = await Promise.all(
           teamsToCreate.map(async (teamData) => {
@@ -917,8 +902,6 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         );
         // Append new teams to existing participants
         participants = [...participants, ...newTeams];
-        console.log('Created teams:', newTeams.length);
-        console.log('Total teams now:', participants.length);
       }
     }
 
@@ -1061,7 +1044,7 @@ async function createThirdPlaceMatchIfReady(tournamentId) {
     });
 
     if (existingThirdPlaceMatch) {
-      console.log('3rd place match already exists');
+      // 3rd place match already exists
       return null;
     }
 
@@ -1080,7 +1063,7 @@ async function createThirdPlaceMatchIfReady(tournamentId) {
 
     // Need exactly 2 completed semi-finals to create 3rd place match
     if (semiMatches.length !== 2) {
-      console.log(`Only ${semiMatches.length} semi-finals completed, need 2`);
+      // Not enough semi-finals completed yet
       return null;
     }
 
@@ -1090,7 +1073,7 @@ async function createThirdPlaceMatchIfReady(tournamentId) {
     });
 
     if (losers.length !== 2 || !losers[0] || !losers[1]) {
-      console.log('Could not determine semi-final losers');
+      // Could not determine semi-final losers
       return null;
     }
 
@@ -1119,7 +1102,7 @@ async function createThirdPlaceMatchIfReady(tournamentId) {
       },
     });
 
-    console.log(`3rd place match created: ${thirdPlaceMatch.id}`);
+    // 3rd place match created successfully
     return thirdPlaceMatch;
   } catch (error) {
     console.error('Error creating 3rd place match:', error);

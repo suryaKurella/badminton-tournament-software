@@ -2,11 +2,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useFeatureFlag } from '../../context/FeatureFlagContext';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { user, dbUser, isAuthenticated, logout } = useAuth();
+  const { user, dbUser, isAuthenticated, isAdmin, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const leaderboardEnabled = useFeatureFlag('leaderboard');
+  const clubsEnabled = useFeatureFlag('club_features');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -42,18 +45,30 @@ const Navbar = () => {
             >
               Tournaments
             </Link>
-            <Link
-              to="/leaderboard"
-              className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
-            >
-              Leaderboard
-            </Link>
-            <Link
-              to="/clubs"
-              className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
-            >
-              Clubs
-            </Link>
+            {leaderboardEnabled && (
+              <Link
+                to="/leaderboard"
+                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+              >
+                Leaderboard
+              </Link>
+            )}
+            {clubsEnabled && (
+              <Link
+                to="/clubs"
+                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+              >
+                Clubs
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                to="/admin/feature-flags"
+                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+              >
+                Flags
+              </Link>
+            )}
 
             {/* Dark Mode Toggle */}
             <button
@@ -144,20 +159,33 @@ const Navbar = () => {
               >
                 Tournaments
               </Link>
-              <Link
-                to="/leaderboard"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
-                onClick={closeMobileMenu}
-              >
-                Leaderboard
-              </Link>
-              <Link
-                to="/clubs"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
-                onClick={closeMobileMenu}
-              >
-                Clubs
-              </Link>
+              {leaderboardEnabled && (
+                <Link
+                  to="/leaderboard"
+                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  onClick={closeMobileMenu}
+                >
+                  Leaderboard
+                </Link>
+              )}
+              {clubsEnabled && (
+                <Link
+                  to="/clubs"
+                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  onClick={closeMobileMenu}
+                >
+                  Clubs
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  to="/admin/feature-flags"
+                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  onClick={closeMobileMenu}
+                >
+                  Flags
+                </Link>
+              )}
 
               {isAuthenticated ? (
                 <>

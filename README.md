@@ -92,6 +92,53 @@ ROOT > ADMIN > ORGANIZER > PLAYER > SPECTATOR
 - **PLAYER** - Default role, can register and play in tournaments
 - **SPECTATOR** - View-only access
 
+## Feature Flags
+
+The app uses a feature flag system backed by Supabase Postgres to toggle features on/off without code deploys.
+
+### Architecture
+
+- **Database**: `feature_flags` table managed via Prisma
+- **Backend**: In-memory cache with 60-second refresh, fail-open design
+- **Backend middleware**: `requireFlag('name')` returns 404 if the flag is disabled
+- **Frontend**: `FeatureFlagProvider` context fetches flags on load; `useFeatureFlag('name')` hook returns a boolean (defaults `true` while loading)
+
+### Current Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `double_elimination` | off | Double elimination format option in tournament create/edit |
+| `live_scoring` | on | Real-time point-by-point scoring |
+| `club_features` | on | Club management system |
+| `tournament_structure_preview` | on | Visual bracket preview on tournament details |
+| `match_deletion` | on | Admin match deletion |
+| `leaderboard` | on | Global leaderboard and rankings |
+| `admin_player_registration` | on | Admin direct player/team registration |
+
+### API
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /api/feature-flags` | Public | Returns `{ name: boolean }` map |
+| `GET /api/feature-flags/admin` | ROOT/ADMIN | Returns full flag objects with metadata |
+| `PUT /api/feature-flags/:name` | ROOT/ADMIN | Toggle a flag: `{ "enabled": true/false }` |
+
+### Frontend Usage
+
+```jsx
+// Hook - returns boolean
+const isEnabled = useFeatureFlag('live_scoring');
+
+// Component wrapper
+<FeatureGate flag="club_features">
+  <ClubList />
+</FeatureGate>
+```
+
+### Seeding
+
+Flags are seeded via `npx prisma db seed` (runs `backend/prisma/seed.js`). The seed uses upserts so it's safe to re-run.
+
 ## Tech Stack
 
 ### Frontend
@@ -194,6 +241,11 @@ npm run dev
 ### Statistics
 - `GET /api/statistics/leaderboard` - Global leaderboard
 - `GET /api/statistics/player/:id` - Player statistics
+
+### Feature Flags
+- `GET /api/feature-flags` - Get all flags (public)
+- `GET /api/feature-flags/admin` - Get all flags with metadata (ROOT/ADMIN)
+- `PUT /api/feature-flags/:name` - Toggle a flag (ROOT/ADMIN)
 
 ## License
 

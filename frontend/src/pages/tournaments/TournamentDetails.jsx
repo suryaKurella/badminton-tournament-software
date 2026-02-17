@@ -4,11 +4,13 @@ import { ArrowLeft, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { tournamentAPI, matchAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useFeatureFlag } from '../../context/FeatureFlagContext';
 import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button, PartnerSelect } from '../../components/common';
 import BracketView from '../../components/bracket/BracketView';
 import GroupStageView from '../../components/bracket/GroupStageView';
 import ManualGroupAssignment from '../../components/bracket/ManualGroupAssignment';
 import TournamentLeaderboard from '../../components/tournament/TournamentLeaderboard';
+import TournamentStructurePreview from '../../components/tournament/TournamentStructurePreview';
 import socketService from '../../services/socket';
 
 const TournamentDetails = () => {
@@ -16,6 +18,9 @@ const TournamentDetails = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isOrganizer, isRoot, loading: authLoading } = useAuth();
   const toast = useToast();
+  const structurePreviewEnabled = useFeatureFlag('tournament_structure_preview');
+  const adminRegistrationEnabled = useFeatureFlag('admin_player_registration');
+  const matchDeletionEnabled = useFeatureFlag('match_deletion');
   const [tournament, setTournament] = useState(null);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,18 +46,10 @@ const TournamentDetails = () => {
   const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
-    console.log('=== TournamentDetails useEffect ===');
-    console.log('authLoading:', authLoading);
-    console.log('user:', user);
-    console.log('isAuthenticated:', isAuthenticated);
-
     // Wait for auth to finish loading before fetching tournament
     if (!authLoading) {
-      console.log('Auth loaded, fetching tournament...');
       fetchTournamentDetails();
       fetchMatches();
-    } else {
-      console.log('Still loading auth, waiting...');
     }
 
     // Connect socket and join tournament room
@@ -61,12 +58,10 @@ const TournamentDetails = () => {
 
     // Listen for match updates
     socketService.onMatchCreated(() => {
-      console.log('Match created event received, refetching...');
       fetchMatches();
     });
 
     socketService.onMatchUpdated(() => {
-      console.log('Match updated event received, refetching...');
       fetchMatches();
     });
 
@@ -75,59 +70,49 @@ const TournamentDetails = () => {
     });
 
     socketService.onMatchStarted(() => {
-      console.log('Match started event received, refetching...');
       fetchMatches();
     });
 
     socketService.onMatchCompleted(() => {
-      console.log('Match completed event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     socketService.onMatchDeleted(() => {
-      console.log('Match deleted event received, refetching...');
       fetchMatches();
     });
 
     socketService.onMatchWalkover(() => {
-      console.log('Match walkover event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     // Listen for tournament updates (including reset)
     socketService.onTournamentReset(() => {
-      console.log('Tournament reset event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     socketService.onTournamentUpdated(() => {
-      console.log('Tournament updated event received, refetching...');
       fetchTournamentDetails();
     });
 
     socketService.onBracketGenerated(() => {
-      console.log('Bracket generated event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     socketService.onGroupStageComplete(() => {
-      console.log('Group stage complete event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     socketService.onKnockoutCreated(() => {
-      console.log('Knockout created event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
 
     socketService.onTournamentCompleted(() => {
-      console.log('Tournament completed event received, refetching...');
       fetchTournamentDetails();
       fetchMatches();
     });
@@ -169,17 +154,10 @@ const TournamentDetails = () => {
 
   const fetchTournamentDetails = async () => {
     try {
-      console.log('=== Fetching tournament ===');
-      console.log('Tournament ID:', id);
-      console.log('Auth state - user:', user);
-      console.log('Auth state - isAuthenticated:', isAuthenticated);
-
       const response = await tournamentAPI.getById(id);
-      console.log('Tournament fetched successfully:', response.data.data);
       setTournament(response.data.data);
     } catch (error) {
-      console.error('Error fetching tournament:', error);
-      console.error('Error response:', error.response?.data);
+      // Silently fail - tournament may not exist
     } finally {
       setLoading(false);
     }
@@ -190,22 +168,19 @@ const TournamentDetails = () => {
       const response = await matchAPI.getByTournament(id);
       setMatches(response.data.data);
     } catch (error) {
-      console.error('Error fetching matches:', error);
+      // Silently fail
     }
   };
 
   // Fetch leaderboard for Round Robin winners podium
   const fetchRoundRobinWinners = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/statistics/tournament/${id}/leaderboard`
-      );
-      const data = await response.json();
-      if (data.success && data.data) {
-        setRoundRobinWinners(data.data.slice(0, 3)); // Top 3
+      const response = await tournamentAPI.getLeaderboard(id);
+      if (response.data.success && response.data.data) {
+        setRoundRobinWinners(response.data.data.slice(0, 3)); // Top 3
       }
     } catch (error) {
-      console.error('Error fetching leaderboard:', error);
+      // Silently fail
     }
   };
 
@@ -1079,6 +1054,17 @@ const TournamentDetails = () => {
         </div>
       </div>
 
+      {/* Tournament Structure Preview */}
+      {structurePreviewEnabled && (
+        <TournamentStructurePreview
+          format={tournament.format}
+          participantCount={tournament.registrations?.filter(reg => reg.registrationStatus === 'APPROVED').length || 0}
+          maxParticipants={tournament.maxParticipants}
+          numberOfGroups={tournament.numberOfGroups}
+          advancingPerGroup={tournament.advancingPerGroup}
+        />
+      )}
+
       {tournament.registrations && (tournament.registrations.length > 0 || canManageStatus) && (
         <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
           <div
@@ -1096,7 +1082,7 @@ const TournamentDetails = () => {
               )}
             </div>
             <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-              {canManageStatus && tournament.tournamentType === 'SINGLES' && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+              {adminRegistrationEnabled && canManageStatus && tournament.tournamentType === 'SINGLES' && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
                 <button
                   onClick={openAddPlayerModal}
                   className="px-4 py-2 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white border border-brand-blue/20 hover:border-brand-blue rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
@@ -1105,7 +1091,7 @@ const TournamentDetails = () => {
                   Add Player
                 </button>
               )}
-              {canManageStatus && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
+              {adminRegistrationEnabled && canManageStatus && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && (tournament.status === 'OPEN' || tournament.status === 'DRAFT') && (
                 <button
                   onClick={openAddTeamModal}
                   className="px-4 py-2 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white border border-brand-blue/20 hover:border-brand-blue rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
@@ -1963,31 +1949,33 @@ const TournamentDetails = () => {
                               {t1} <span className="text-gray-500 mx-1">vs</span> {t2}
                             </div>
                           </div>
-                          <button
-                            onClick={() => {
-                              setConfirmModal({
-                                isOpen: true,
-                                title: 'Delete Match?',
-                                message: `Delete ${match.round}: ${t1} vs ${t2}?`,
-                                confirmText: 'Delete',
-                                cancelText: 'Cancel',
-                                type: 'danger',
-                                onConfirm: async () => {
-                                  try {
-                                    await matchAPI.delete(match.id);
-                                    toast.success('Match deleted');
-                                    await fetchMatches();
-                                  } catch (error) {
-                                    toast.error(error.response?.data?.message || 'Failed to delete match');
-                                  }
-                                },
-                              });
-                            }}
-                            className="ml-3 p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Delete match"
-                          >
-                            🗑️
-                          </button>
+                          {matchDeletionEnabled && (
+                            <button
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: 'Delete Match?',
+                                  message: `Delete ${match.round}: ${t1} vs ${t2}?`,
+                                  confirmText: 'Delete',
+                                  cancelText: 'Cancel',
+                                  type: 'danger',
+                                  onConfirm: async () => {
+                                    try {
+                                      await matchAPI.delete(match.id);
+                                      toast.success('Match deleted');
+                                      await fetchMatches();
+                                    } catch (error) {
+                                      toast.error(error.response?.data?.message || 'Failed to delete match');
+                                    }
+                                  },
+                                });
+                              }}
+                              className="ml-3 p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Delete match"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                       );
                     })}

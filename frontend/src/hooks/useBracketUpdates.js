@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import socketService from '../services/socket';
+import api from '../services/api';
 
 /**
  * Custom hook for real-time bracket updates via Socket.IO
@@ -14,14 +15,12 @@ export const useBracketUpdates = (tournamentId, enabled = true) => {
 
   // Handle bracket generated event
   const handleBracketGenerated = useCallback((data) => {
-    console.log('Bracket generated:', data);
     setBracketData(data.bracket);
     setLastUpdate({ type: 'generated', timestamp: new Date(), data });
   }, []);
 
   // Handle bracket updated event
   const handleBracketUpdated = useCallback((data) => {
-    console.log('Bracket updated:', data);
     setBracketData((prev) => {
       if (!prev) return prev;
 
@@ -41,18 +40,15 @@ export const useBracketUpdates = (tournamentId, enabled = true) => {
 
   // Handle match completed in tournament
   const handleMatchCompleted = useCallback((data) => {
-    console.log('Match completed in tournament:', data);
     setLastUpdate({ type: 'matchCompleted', timestamp: new Date(), data });
   }, []);
 
   // Handle connection status
   const handleConnect = useCallback(() => {
-    console.log('Socket connected for bracket updates');
     setIsConnected(true);
   }, []);
 
   const handleDisconnect = useCallback(() => {
-    console.log('Socket disconnected for bracket updates');
     setIsConnected(false);
   }, []);
 
@@ -67,7 +63,6 @@ export const useBracketUpdates = (tournamentId, enabled = true) => {
 
     // Join tournament room
     socketService.joinTournament(tournamentId);
-    console.log(`Joined tournament room: ${tournamentId}`);
 
     // Set up event listeners
     socketService.on('connect', handleConnect);
@@ -84,7 +79,6 @@ export const useBracketUpdates = (tournamentId, enabled = true) => {
       socketService.off('bracket:updated', handleBracketUpdated);
       socketService.off('match:completed', handleMatchCompleted);
       socketService.leaveTournament(tournamentId);
-      console.log(`Left tournament room: ${tournamentId}`);
     };
   }, [
     tournamentId,
@@ -101,15 +95,12 @@ export const useBracketUpdates = (tournamentId, enabled = true) => {
     if (!tournamentId) return;
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/tournaments/${tournamentId}/bracket`
-      );
-      const data = await response.json();
-      if (data.success) {
-        setBracketData(data.data);
+      const response = await api.get(`/tournaments/${tournamentId}/bracket`);
+      if (response.data.success) {
+        setBracketData(response.data.data);
       }
     } catch (error) {
-      console.error('Error refreshing bracket:', error);
+      // Silently fail
     }
   }, [tournamentId]);
 

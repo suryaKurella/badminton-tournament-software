@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import socketService from '../services/socket';
+import api from '../services/api';
 
 /**
  * Custom hook for real-time live scoring via Socket.IO
@@ -16,7 +17,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle point scored event
   const handlePointScored = useCallback((data) => {
-    console.log('Point scored:', data);
     setCurrentScore({
       matchId: data.matchId,
       gameNumber: data.gameNumber,
@@ -44,7 +44,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle game complete event
   const handleGameComplete = useCallback((data) => {
-    console.log('Game complete:', data);
     setLastEvent({
       type: 'gameComplete',
       timestamp: new Date(data.timestamp),
@@ -62,7 +61,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle match complete event
   const handleMatchComplete = useCallback((data) => {
-    console.log('Match complete:', data);
     setMatchStatus('COMPLETED');
     setLastEvent({
       type: 'matchComplete',
@@ -80,7 +78,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle undo point event
   const handleUndoPoint = useCallback((data) => {
-    console.log('Point undone:', data);
     setCurrentScore({
       matchId: data.matchId,
       gameNumber: data.gameNumber,
@@ -99,7 +96,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle match started event
   const handleMatchStarted = useCallback((data) => {
-    console.log('Match started:', data);
     setMatchStatus('LIVE');
     setLastEvent({
       type: 'matchStarted',
@@ -115,12 +111,10 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
   // Handle connection status
   const handleConnect = useCallback(() => {
-    console.log('Socket connected for live scoring');
     setIsConnected(true);
   }, []);
 
   const handleDisconnect = useCallback(() => {
-    console.log('Socket disconnected for live scoring');
     setIsConnected(false);
   }, []);
 
@@ -135,7 +129,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
 
     // Join match room
     socketService.joinMatch(matchId);
-    console.log(`Joined match room: ${matchId}`);
 
     // Set up event listeners
     socketService.on('connect', handleConnect);
@@ -156,7 +149,6 @@ export const useLiveScoring = (matchId, enabled = true) => {
       socketService.off('match:undoPoint', handleUndoPoint);
       socketService.off('match:started', handleMatchStarted);
       socketService.leaveMatch(matchId);
-      console.log(`Left match room: ${matchId}`);
     };
   }, [
     matchId,
@@ -175,16 +167,13 @@ export const useLiveScoring = (matchId, enabled = true) => {
     if (!matchId) return;
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/matches/${matchId}/current-score`
-      );
-      const data = await response.json();
-      if (data.success) {
-        setCurrentScore(data.data);
-        setMatchStatus(data.data.matchStatus);
+      const response = await api.get(`/matches/${matchId}/current-score`);
+      if (response.data.success) {
+        setCurrentScore(response.data.data);
+        setMatchStatus(response.data.data.matchStatus);
       }
     } catch (error) {
-      console.error('Error refreshing score:', error);
+      // Silently fail
     }
   }, [matchId]);
 
@@ -193,15 +182,12 @@ export const useLiveScoring = (matchId, enabled = true) => {
     if (!matchId) return;
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/matches/${matchId}/timeline`
-      );
-      const data = await response.json();
-      if (data.success) {
-        setTimeline(data.data || []);
+      const response = await api.get(`/matches/${matchId}/timeline`);
+      if (response.data.success) {
+        setTimeline(response.data.data || []);
       }
     } catch (error) {
-      console.error('Error refreshing timeline:', error);
+      // Silently fail
     }
   }, [matchId]);
 

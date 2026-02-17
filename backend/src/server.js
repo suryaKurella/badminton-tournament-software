@@ -23,6 +23,8 @@ const matchRoutes = require('./routes/match.routes');
 const userRoutes = require('./routes/user.routes');
 const statisticsRoutes = require('./routes/statistics.routes');
 const clubRoutes = require('./routes/club.routes');
+const featureFlagRoutes = require('./routes/featureFlag.routes');
+const featureFlagService = require('./services/featureFlag.service');
 
 // Initialize Express app
 const app = express();
@@ -38,8 +40,8 @@ const io = new Server(httpServer, {
   },
 });
 
-// Connect to database
-connectDB();
+// Connect to database, then initialize feature flag cache
+connectDB().then(() => featureFlagService.initialize());
 
 // Security Middleware
 app.use(helmet({
@@ -118,6 +120,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/clubs', clubRoutes);
+app.use('/api/feature-flags', featureFlagRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

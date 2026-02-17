@@ -16,7 +16,6 @@ router.get('/me', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user profile',
-      error: error.message,
     });
   }
 });
@@ -55,7 +54,6 @@ router.get('/check-username/:username', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error checking username availability',
-      error: error.message,
     });
   }
 });
@@ -133,7 +131,6 @@ router.put('/me', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating user profile',
-      error: error.message,
     });
   }
 });

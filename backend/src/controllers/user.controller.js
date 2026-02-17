@@ -47,7 +47,6 @@ const getAllUsers = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching users',
-      error: error.message,
     });
   }
 };
@@ -90,7 +89,6 @@ const getUserById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
-      error: error.message,
     });
   }
 };
@@ -141,7 +139,6 @@ const updateUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating user',
-      error: error.message,
     });
   }
 };
@@ -166,7 +163,6 @@ const deleteUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deleting user',
-      error: error.message,
     });
   }
 };

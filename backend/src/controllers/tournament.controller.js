@@ -84,11 +84,10 @@ const getAllTournaments = async (req, res) => {
       data: tournaments,
     });
   } catch (error) {
-    console.error('Get tournaments error:', error);
+    console.error('Get tournaments error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error fetching tournaments',
-      error: error.message,
     });
   }
 };
@@ -98,10 +97,6 @@ const getAllTournaments = async (req, res) => {
 // @access  Public
 const getTournament = async (req, res) => {
   try {
-    console.log('=== GET TOURNAMENT REQUEST ===');
-    console.log('Tournament ID:', req.params.id);
-    console.log('User:', req.user ? { id: req.user.id, role: req.user.role } : 'No user (unauthenticated)');
-
     const { id } = req.params;
 
     const tournament = await prisma.tournament.findUnique({
@@ -252,11 +247,10 @@ const getTournament = async (req, res) => {
       data: tournament,
     });
   } catch (error) {
-    console.error('Get tournament error:', error);
+    console.error('Get tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error fetching tournament',
-      error: error.message,
     });
   }
 };
@@ -266,9 +260,6 @@ const getTournament = async (req, res) => {
 // @access  Private (ADMIN, ORGANIZER)
 const createTournament = async (req, res) => {
   try {
-    console.log('=== CREATE TOURNAMENT REQUEST ===');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-
     const {
       name,
       description,
@@ -282,13 +273,10 @@ const createTournament = async (req, res) => {
       numberOfGroups,
       advancingPerGroup,
       clubId,
+      scoringPermission,
     } = req.body;
 
-    console.log('Extracted status:', status);
-    console.log('Status type:', typeof status);
-
     const finalStatus = status || 'DRAFT';
-    console.log('Final status to be used:', finalStatus);
 
     // Build tournament data
     const tournamentData = {
@@ -315,6 +303,11 @@ const createTournament = async (req, res) => {
       tournamentData.clubId = clubId;
     }
 
+    // Add scoring permission if provided
+    if (scoringPermission) {
+      tournamentData.scoringPermission = scoringPermission;
+    }
+
     const tournament = await prisma.tournament.create({
       data: tournamentData,
       include: {
@@ -334,20 +327,16 @@ const createTournament = async (req, res) => {
       },
     });
 
-    console.log('Created tournament status:', tournament.status);
-    console.log('Created tournament ID:', tournament.id);
-
     res.status(201).json({
       success: true,
       message: 'Tournament created successfully',
       data: tournament,
     });
   } catch (error) {
-    console.error('Create tournament error:', error);
+    console.error('Create tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error creating tournament',
-      error: error.message,
     });
   }
 };
@@ -381,22 +370,14 @@ const updateTournament = async (req, res) => {
     }
 
     // Prevent changing tournament type or format when brackets are generated
-    console.log('=== UPDATE TOURNAMENT ===');
-    console.log('Tournament ID:', id);
-    console.log('Bracket Generated:', tournament.bracketGenerated);
-    console.log('Current Type:', tournament.tournamentType, '| Requested Type:', updateData.tournamentType);
-    console.log('Current Format:', tournament.format, '| Requested Format:', updateData.format);
-
     if (tournament.bracketGenerated) {
       if (updateData.tournamentType && updateData.tournamentType !== tournament.tournamentType) {
-        console.log('BLOCKED: Attempted to change tournament type after brackets generated');
         return res.status(400).json({
           success: false,
           message: 'Cannot change tournament type after brackets have been generated. Please reset the tournament first.',
         });
       }
       if (updateData.format && updateData.format !== tournament.format) {
-        console.log('BLOCKED: Attempted to change tournament format after brackets generated');
         return res.status(400).json({
           success: false,
           message: 'Cannot change tournament format after brackets have been generated. Please reset the tournament first.',
@@ -427,6 +408,9 @@ const updateTournament = async (req, res) => {
       updateData.clubId = null;
     }
 
+    // Remove deprecated field (replaced by scoringPermission)
+    delete updateData.allowPlayerScoring;
+
     // Set startedAt timestamp when tournament becomes active
     // Also reset pause-related fields to start fresh
     if (updateData.status === 'ACTIVE' && tournament.status !== 'ACTIVE') {
@@ -444,7 +428,7 @@ const updateTournament = async (req, res) => {
             tournament.seedingMethod || 'RANDOM'
           );
         } catch (bracketError) {
-          console.error('Error generating bracket:', bracketError);
+          console.error('Error generating bracket:', bracketError.message);
           // Return the error to user so they can fix the issue
           return res.status(400).json({
             success: false,
@@ -489,11 +473,10 @@ const updateTournament = async (req, res) => {
       data: updatedTournament,
     });
   } catch (error) {
-    console.error('Update tournament error:', error);
+    console.error('Update tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error updating tournament',
-      error: error.message,
     });
   }
 };
@@ -504,10 +487,6 @@ const updateTournament = async (req, res) => {
 const deleteTournament = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('=== Delete Tournament Request ===');
-    console.log('Tournament ID:', id);
-    console.log('User ID:', req.user?.id);
-    console.log('User Role:', req.user?.role);
 
     // Check if tournament exists
     const tournament = await prisma.tournament.findUnique({
@@ -515,41 +494,33 @@ const deleteTournament = async (req, res) => {
     });
 
     if (!tournament) {
-      console.log('Tournament not found');
       return res.status(404).json({
         success: false,
         message: 'Tournament not found',
       });
     }
 
-    console.log('Tournament found:', tournament.name);
-    console.log('Created by:', tournament.createdById);
-
     // Check if user is the creator, admin, or root
     if (tournament.createdById !== req.user.id && req.user.role !== 'ADMIN' && req.user.role !== 'ROOT') {
-      console.log('User not authorized to delete');
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this tournament',
       });
     }
 
-    console.log('Authorization passed, deleting tournament...');
     await prisma.tournament.delete({
       where: { id },
     });
 
-    console.log('Tournament deleted successfully');
     res.status(200).json({
       success: true,
       message: 'Tournament deleted successfully',
     });
   } catch (error) {
-    console.error('Delete tournament error:', error);
+    console.error('Delete tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error deleting tournament',
-      error: error.message,
     });
   }
 };
@@ -692,11 +663,10 @@ const registerForTournament = async (req, res) => {
       data: registration,
     });
   } catch (error) {
-    console.error('Tournament registration error:', error);
+    console.error('Tournament registration error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error registering for tournament',
-      error: error.message,
     });
   }
 };
@@ -757,11 +727,10 @@ const deregisterFromTournament = async (req, res) => {
       message: 'Successfully deregistered from tournament',
     });
   } catch (error) {
-    console.error('Tournament deregistration error:', error);
+    console.error('Tournament deregistration error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error deregistering from tournament',
-      error: error.message,
     });
   }
 };
@@ -855,11 +824,10 @@ const approveRegistration = async (req, res) => {
       data: updatedRegistration,
     });
   } catch (error) {
-    console.error('Approve registration error:', error);
+    console.error('Approve registration error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error approving registration',
-      error: error.message,
     });
   }
 };
@@ -953,11 +921,10 @@ const rejectRegistration = async (req, res) => {
       data: updatedRegistration,
     });
   } catch (error) {
-    console.error('Reject registration error:', error);
+    console.error('Reject registration error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error rejecting registration',
-      error: error.message,
     });
   }
 };
@@ -1039,11 +1006,10 @@ const unregisterParticipant = async (req, res) => {
       data: { registrationId, userName: registration.user.fullName || registration.user.username },
     });
   } catch (error) {
-    console.error('Unregister participant error:', error);
+    console.error('Unregister participant error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error unregistering participant',
-      error: error.message,
     });
   }
 };
@@ -1152,11 +1118,10 @@ const togglePauseTournament = async (req, res) => {
       data: updatedTournament,
     });
   } catch (error) {
-    console.error('Toggle pause tournament error:', error);
+    console.error('Toggle pause tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error toggling tournament pause state',
-      error: error.message,
     });
   }
 };
@@ -1241,11 +1206,10 @@ const toggleRegistration = async (req, res) => {
       data: updatedTournament,
     });
   } catch (error) {
-    console.error('Toggle registration error:', error);
+    console.error('Toggle registration error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error toggling registration status',
-      error: error.message,
     });
   }
 };
@@ -1341,11 +1305,10 @@ const getBracket = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get bracket error:', error);
+    console.error('Get bracket error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error getting bracket',
-      error: error.message,
     });
   }
 };
@@ -1444,11 +1407,10 @@ const regenerateBracket = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('Regenerate bracket error:', error);
+    console.error('Regenerate bracket error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error regenerating bracket',
-      error: error.message,
     });
   }
 };
@@ -1509,11 +1471,10 @@ const approveAllPendingRegistrations = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Approve all registrations error:', error);
+    console.error('Approve all registrations error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error approving registrations',
-      error: error.message,
     });
   }
 };
@@ -1705,11 +1666,10 @@ const replaceNoShowTeam = async (req, res) => {
       data: result.updatedMatch,
     });
   } catch (error) {
-    console.error('Replace no-show team error:', error);
+    console.error('Replace no-show team error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error replacing team',
-      error: error.message,
     });
   }
 };
@@ -1806,11 +1766,10 @@ const resetTournament = async (req, res) => {
       message: 'Tournament has been reset. Registrations are now open and players can join if space is available.',
     });
   } catch (error) {
-    console.error('Reset tournament error:', error);
+    console.error('Reset tournament error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error resetting tournament',
-      error: error.message,
     });
   }
 };
@@ -1859,11 +1818,10 @@ const getGroupStandings = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get group standings error:', error);
+    console.error('Get group standings error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error getting group standings',
-      error: error.message,
     });
   }
 };
@@ -1937,7 +1895,7 @@ const completeGroupStage = async (req, res) => {
       data: result.data,
     });
   } catch (error) {
-    console.error('Complete group stage error:', error);
+    console.error('Complete group stage error:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || 'Error completing group stage',
@@ -2067,11 +2025,10 @@ const assignToGroup = async (req, res) => {
       data: updatedRegistration,
     });
   } catch (error) {
-    console.error('Assign to group error:', error);
+    console.error('Assign to group error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error assigning player to group',
-      error: error.message,
     });
   }
 };
@@ -2151,11 +2108,10 @@ const getGroupAssignments = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get group assignments error:', error);
+    console.error('Get group assignments error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error getting group assignments',
-      error: error.message,
     });
   }
 };
@@ -2258,11 +2214,10 @@ const autoAssignGroups = async (req, res) => {
       data: { assignedCount: unassignedRegistrations.length },
     });
   } catch (error) {
-    console.error('Auto-assign groups error:', error);
+    console.error('Auto-assign groups error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error auto-assigning groups',
-      error: error.message,
     });
   }
 };
@@ -2368,11 +2323,10 @@ const shuffleGroups = async (req, res) => {
       data: { shuffledCount: registrations.length },
     });
   } catch (error) {
-    console.error('Shuffle groups error:', error);
+    console.error('Shuffle groups error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error shuffling groups',
-      error: error.message,
     });
   }
 };
@@ -2458,7 +2412,7 @@ const roundRobinToKnockout = async (req, res) => {
       data: result.data,
     });
   } catch (error) {
-    console.error('Round robin to knockout error:', error);
+    console.error('Round robin to knockout error:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || 'Error creating knockout bracket',
@@ -2596,7 +2550,7 @@ const declareWinners = async (req, res) => {
       data: { winners },
     });
   } catch (error) {
-    console.error('Declare winners error:', error);
+    console.error('Declare winners error:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || 'Error declaring winners',
@@ -2694,7 +2648,7 @@ const revertPlayoffs = async (req, res) => {
       message: 'Playoffs reverted. You can now declare winners or create new playoffs.',
     });
   } catch (error) {
-    console.error('Revert playoffs error:', error);
+    console.error('Revert playoffs error:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || 'Error reverting playoffs',
@@ -2786,11 +2740,10 @@ const getPotentialPartners = async (req, res) => {
       data: partnersWithStatus,
     });
   } catch (error) {
-    console.error('Get potential partners error:', error);
+    console.error('Get potential partners error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error fetching potential partners',
-      error: error.message,
     });
   }
 };
@@ -2928,11 +2881,10 @@ const assignPartner = async (req, res) => {
       message: `${registration.user.fullName || registration.user.username} paired with ${partnerRegistration.user.fullName || partnerRegistration.user.username}`,
     });
   } catch (error) {
-    console.error('Assign partner error:', error);
+    console.error('Assign partner error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error assigning partner',
-      error: error.message,
     });
   }
 };
@@ -3075,11 +3027,10 @@ const approveTeamWithPendingPartner = async (req, res) => {
       message: `Team "${playerName} & ${partnerName}" approved successfully`,
     });
   } catch (error) {
-    console.error('Approve team with pending partner error:', error);
+    console.error('Approve team with pending partner error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error approving team',
-      error: error.message,
     });
   }
 };
@@ -3216,11 +3167,10 @@ const adminRegisterTeam = async (req, res) => {
       data: { registration1: reg1, registration2: reg2 },
     });
   } catch (error) {
-    console.error('Admin register team error:', error);
+    console.error('Admin register team error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error registering team',
-      error: error.message,
     });
   }
 };
@@ -3328,11 +3278,10 @@ const adminRegisterPlayer = async (req, res) => {
       data: registration,
     });
   } catch (error) {
-    console.error('Admin register player error:', error);
+    console.error('Admin register player error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error registering player',
-      error: error.message,
     });
   }
 };

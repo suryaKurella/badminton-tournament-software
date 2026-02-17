@@ -3,6 +3,12 @@ const scoreService = require('../services/score.service');
 const statisticsService = require('../services/statistics.service');
 const bracketService = require('../services/bracket.service');
 
+const PLAYER_SELECT = { id: true, username: true, fullName: true };
+const MATCH_TEAM_INCLUDE = {
+  team1: { include: { player1: { select: PLAYER_SELECT }, player2: { select: PLAYER_SELECT } } },
+  team2: { include: { player1: { select: PLAYER_SELECT }, player2: { select: PLAYER_SELECT } } },
+};
+
 // Socket.io instance will be set from server.js
 let io;
 
@@ -11,11 +17,11 @@ const setSocketIO = (socketIO) => {
 };
 
 // Helper function to check if player scoring is allowed for a tournament
-const checkPlayerScoringAllowed = async (tournamentId, userRole) => {
+const checkPlayerScoringAllowed = async (tournamentId, userRole, userId) => {
   // Get tournament to check status and scoring settings
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { allowPlayerScoring: true, status: true },
+    select: { scoringPermission: true, status: true },
   });
 
   if (!tournament) {
@@ -32,12 +38,27 @@ const checkPlayerScoringAllowed = async (tournamentId, userRole) => {
     return { allowed: true };
   }
 
-  // For PLAYER role, check tournament setting
-  if (!tournament.allowPlayerScoring) {
-    return { allowed: false, error: 'Only organizers can update scores for this tournament' };
+  // ANYONE: all logged-in users can score
+  if (tournament.scoringPermission === 'ANYONE') {
+    return { allowed: true };
   }
 
-  return { allowed: true };
+  // PARTICIPANTS: only registered tournament participants can score
+  if (tournament.scoringPermission === 'PARTICIPANTS') {
+    const registration = await prisma.registration.findUnique({
+      where: {
+        userId_tournamentId: { userId, tournamentId },
+      },
+      select: { registrationStatus: true },
+    });
+    if (registration && registration.registrationStatus === 'APPROVED') {
+      return { allowed: true };
+    }
+    return { allowed: false, error: 'Only tournament participants and organizers can update scores' };
+  }
+
+  // ORGANIZERS: only admins/organizers (already handled above)
+  return { allowed: false, error: 'Only organizers can update scores for this tournament' };
 };
 
 // @desc    Get all matches for a tournament
@@ -67,42 +88,7 @@ const getMatchesByTournament = async (req, res) => {
       skip,
       take: limitNum,
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
       orderBy: [
         { round: 'asc' },
@@ -123,7 +109,6 @@ const getMatchesByTournament = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching matches',
-      error: error.message,
     });
   }
 };
@@ -143,7 +128,7 @@ const getMatch = async (req, res) => {
             id: true,
             name: true,
             tournamentType: true,
-            allowPlayerScoring: true,
+            scoringPermission: true,
             status: true,
           },
         },
@@ -206,7 +191,6 @@ const getMatch = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching match',
-      error: error.message,
     });
   }
 };
@@ -236,42 +220,7 @@ const createMatch = async (req, res) => {
         matchStatus: 'UPCOMING',
       },
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
     });
 
@@ -290,7 +239,6 @@ const createMatch = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating match',
-      error: error.message,
     });
   }
 };
@@ -327,42 +275,7 @@ const updateMatch = async (req, res) => {
       where: { id },
       data: updateData,
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
     });
 
@@ -381,7 +294,6 @@ const updateMatch = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating match',
-      error: error.message,
     });
   }
 };
@@ -411,7 +323,7 @@ const updateMatchScore = async (req, res) => {
     }
 
     // Check if player scoring is allowed
-    const scoringCheck = await checkPlayerScoringAllowed(match.tournamentId, req.user.role);
+    const scoringCheck = await checkPlayerScoringAllowed(match.tournamentId, req.user.role, req.user.id);
     if (!scoringCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -449,42 +361,7 @@ const updateMatchScore = async (req, res) => {
       where: { id },
       data: updateData,
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
     });
 
@@ -528,7 +405,6 @@ const updateMatchScore = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating score',
-      error: error.message,
     });
   }
 };
@@ -554,7 +430,7 @@ const startMatch = async (req, res) => {
     }
 
     // Check if player scoring is allowed
-    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role);
+    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role, req.user.id);
     if (!scoringCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -569,42 +445,7 @@ const startMatch = async (req, res) => {
         startTime: new Date(),
       },
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
     });
 
@@ -624,7 +465,6 @@ const startMatch = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error starting match',
-      error: error.message,
     });
   }
 };
@@ -658,7 +498,7 @@ const completeMatch = async (req, res) => {
     }
 
     // Check if player scoring is allowed
-    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role);
+    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role, req.user.id);
     if (!scoringCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -674,42 +514,7 @@ const completeMatch = async (req, res) => {
         winnerId,
       },
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
       },
     });
 
@@ -724,7 +529,6 @@ const completeMatch = async (req, res) => {
     try {
       await bracketService.advanceWinner(id, winnerId);
     } catch (bracketError) {
-      console.log('Bracket advance info:', bracketError.message);
       // Non-critical - continue even if bracket advancement fails
     }
 
@@ -744,7 +548,6 @@ const completeMatch = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error completing match',
-      error: error.message,
     });
   }
 };
@@ -778,7 +581,7 @@ const recordPoint = async (req, res) => {
     }
 
     // Check if player scoring is allowed
-    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role);
+    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role, req.user.id);
     if (!scoringCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -828,7 +631,6 @@ const recordPoint = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error recording point',
-      error: error.message,
     });
   }
 };
@@ -854,7 +656,7 @@ const undoPoint = async (req, res) => {
     }
 
     // Check if player scoring is allowed
-    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role);
+    const scoringCheck = await checkPlayerScoringAllowed(existingMatch.tournamentId, req.user.role, req.user.id);
     if (!scoringCheck.allowed) {
       return res.status(403).json({
         success: false,
@@ -882,7 +684,6 @@ const undoPoint = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error undoing point',
-      error: error.message,
     });
   }
 };
@@ -902,7 +703,6 @@ const getCurrentScore = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting current score',
-      error: error.message,
     });
   }
 };
@@ -923,7 +723,6 @@ const getMatchTimeline = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting match timeline',
-      error: error.message,
     });
   }
 };
@@ -959,7 +758,6 @@ const updateServingTeam = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating serving team',
-      error: error.message,
     });
   }
 };
@@ -995,7 +793,6 @@ const recordTimeout = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error recording timeout',
-      error: error.message,
     });
   }
 };
@@ -1089,42 +886,7 @@ const awardWalkover = async (req, res) => {
         team2Score: winnerId === existingMatch.team2Id ? 'W/O' : '-',
       },
       include: {
-        team1: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-        team2: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-            player2: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-              },
-            },
-          },
-        },
+        ...MATCH_TEAM_INCLUDE,
         tournament: {
           select: {
             id: true,
@@ -1135,11 +897,9 @@ const awardWalkover = async (req, res) => {
     });
 
     // Advance winner in bracket
-    const bracketService = require('../services/bracket.service');
     try {
       await bracketService.advanceWinner(id, winnerId);
     } catch (bracketError) {
-      console.log('Bracket advance info:', bracketError.message);
       // Non-critical - continue even if bracket advancement fails
     }
 
@@ -1168,7 +928,6 @@ const awardWalkover = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error awarding walkover',
-      error: error.message,
     });
   }
 };
@@ -1215,7 +974,7 @@ const deleteMatch = async (req, res) => {
     res.status(200).json({ success: true, message: 'Match deleted successfully' });
   } catch (error) {
     console.error('Delete match error:', error);
-    res.status(500).json({ success: false, message: 'Error deleting match', error: error.message });
+    res.status(500).json({ success: false, message: 'Error deleting match' });
   }
 };
 

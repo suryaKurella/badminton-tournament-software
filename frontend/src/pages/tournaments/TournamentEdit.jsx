@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { X, ChevronDown, Search, ArrowLeft } from 'lucide-react';
 import { tournamentAPI, matchAPI, clubAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useFeatureFlag } from '../../context/FeatureFlagContext';
 import { useToast } from '../../context/ToastContext';
 import { Input, Select, Textarea, LoadingSpinner, Button, ConfirmationModal } from '../../components/common';
 
@@ -10,6 +11,7 @@ const TournamentEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isOrganizer, user } = useAuth();
+  const doubleEliminationEnabled = useFeatureFlag('double_elimination');
   const toast = useToast();
 
   const [formData, setFormData] = useState({
@@ -21,7 +23,7 @@ const TournamentEdit = () => {
     maxParticipants: '',
     tournamentType: 'SINGLES',
     format: 'SINGLE_ELIMINATION',
-    allowPlayerScoring: true,
+    scoringPermission: 'ANYONE',
     numberOfGroups: '4',
     advancingPerGroup: '2',
     clubId: '',
@@ -126,7 +128,7 @@ const TournamentEdit = () => {
         maxParticipants: tournamentData.maxParticipants || '',
         tournamentType: tournamentData.tournamentType || 'SINGLES',
         format: tournamentData.format || 'SINGLE_ELIMINATION',
-        allowPlayerScoring: tournamentData.allowPlayerScoring !== false, // Default to true if not set
+        scoringPermission: tournamentData.scoringPermission || 'ANYONE',
         numberOfGroups: String(tournamentData.numberOfGroups || 4),
         advancingPerGroup: String(tournamentData.advancingPerGroup || 2),
         clubId: tournamentData.clubId || '',
@@ -297,7 +299,9 @@ const TournamentEdit = () => {
             disabled={tournament?.bracketGenerated}
           >
             <option value="SINGLE_ELIMINATION">Single Elimination</option>
-            <option value="DOUBLE_ELIMINATION">Double Elimination</option>
+            {doubleEliminationEnabled && (
+              <option value="DOUBLE_ELIMINATION">Double Elimination</option>
+            )}
             <option value="ROUND_ROBIN">Round Robin</option>
             <option value="GROUP_KNOCKOUT">Group Stage + Knockout</option>
           </Select>
@@ -405,15 +409,16 @@ const TournamentEdit = () => {
           </p>
           <Select
             label="Who can update scores?"
-            name="allowPlayerScoring"
-            value={formData.allowPlayerScoring ? 'anyone' : 'admins'}
+            name="scoringPermission"
+            value={formData.scoringPermission}
             onChange={(e) => setFormData({
               ...formData,
-              allowPlayerScoring: e.target.value === 'anyone',
+              scoringPermission: e.target.value,
             })}
           >
-            <option value="anyone">Anyone (All logged-in users)</option>
-            <option value="admins">Organizers Only (Admins and tournament organizers)</option>
+            <option value="ANYONE">Anyone (All logged-in users)</option>
+            <option value="PARTICIPANTS">Participants Only (Players registered in tournament and organizers)</option>
+            <option value="ORGANIZERS">Organizers Only (Admins and tournament organizers)</option>
           </Select>
         </div>
 

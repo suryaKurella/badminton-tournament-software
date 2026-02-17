@@ -70,7 +70,7 @@ model Tournament {
   seedingMethod      SeedingMethod      @default(RANDOM) @map("seeding_method")
 
   // Scoring permissions
-  allowPlayerScoring Boolean            @default(true) @map("allow_player_scoring")
+  scoringPermission  ScoringPermission  @default(ANYONE) @map("scoring_permission")
 
   // Registration control
   registrationClosed Boolean            @default(false) @map("registration_closed")
@@ -125,6 +125,12 @@ enum SeedingMethod {
   RANDOM
   RANKING_BASED
   MANUAL
+}
+
+enum ScoringPermission {
+  ANYONE
+  PARTICIPANTS
+  ORGANIZERS
 }
 
 // Registration model
@@ -447,4 +453,17 @@ enum ClubMembershipStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// Feature Flag model - global feature toggles
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@map("feature_flags")
 }

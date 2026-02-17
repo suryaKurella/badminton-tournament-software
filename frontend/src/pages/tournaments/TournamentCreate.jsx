@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ChevronDown, Search } from 'lucide-react';
 import { tournamentAPI, clubAPI } from '../../services/api';
+import { useFeatureFlag } from '../../context/FeatureFlagContext';
 import { Input, Select, Textarea, Button } from '../../components/common';
 
 const TournamentCreate = () => {
   const navigate = useNavigate();
+  const doubleEliminationEnabled = useFeatureFlag('double_elimination');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -150,7 +152,9 @@ const TournamentCreate = () => {
             required
           >
             <option value="SINGLE_ELIMINATION">Single Elimination</option>
-            <option value="DOUBLE_ELIMINATION">Double Elimination</option>
+            {doubleEliminationEnabled && (
+              <option value="DOUBLE_ELIMINATION">Double Elimination</option>
+            )}
             <option value="ROUND_ROBIN">Round Robin</option>
             <option value="GROUP_KNOCKOUT">Group Stage + Knockout</option>
           </Select>

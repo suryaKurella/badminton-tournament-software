@@ -11,3 +11,4 @@ export { default as ConfirmationModal } from './ConfirmationModal';
 export { default as TournamentTimer } from './TournamentTimer';
 export { default as ProtectedRoute } from './ProtectedRoute';
 export { default as PartnerSelect } from './PartnerSelect';
+export { default as FeatureGate } from './FeatureGate';

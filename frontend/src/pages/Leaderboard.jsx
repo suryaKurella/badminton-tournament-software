@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, TrendingUp, TrendingDown, Award, User } from 'lucide-react';
+import { statisticsAPI } from '../services/api';
+import { LoadingSpinner } from '../components/common';
 
 const Leaderboard = () => {
   const [players, setPlayers] = useState([]);
@@ -19,23 +21,18 @@ const Leaderboard = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      const queryParams = new URLSearchParams({
+      const response = await statisticsAPI.getLeaderboard({
         page: filters.page,
         limit: filters.limit,
         timeRange: filters.timeRange,
         minMatches: filters.minMatches,
       });
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/statistics/leaderboard?${queryParams}`
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setPlayers(data.data);
+      if (response.data.success) {
+        setPlayers(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching leaderboard:', error);
+      // Silently fail
     } finally {
       setLoading(false);
     }
@@ -116,9 +113,7 @@ const Leaderboard = () => {
 
       {/* Leaderboard Table */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
-        </div>
+        <LoadingSpinner message="Loading leaderboard..." />
       ) : players.length === 0 ? (
         <div className="glass-card p-12 text-center">
           <User size={48} className="mx-auto mb-4 text-muted" />

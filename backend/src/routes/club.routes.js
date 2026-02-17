@@ -15,8 +15,12 @@ const {
   getClubTournaments,
 } = require('../controllers/club.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
+const { requireFlag } = require('../middleware/featureFlag.middleware');
 
 const router = express.Router();
+
+// Gate all club routes behind feature flag
+router.use(requireFlag('club_features'));
 
 // Public routes (with optional auth for filtering)
 router.get('/', optionalAuth, getAllClubs);

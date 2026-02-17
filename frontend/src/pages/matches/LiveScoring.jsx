@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { matchAPI } from '../../services/api';
+import { matchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { LoadingSpinner } from '../../components/common';
+import { LoadingSpinner, Button } from '../../components/common';
 import { ArrowLeft, Save } from 'lucide-react';
 
 const LiveScoring = () => {
@@ -21,11 +21,21 @@ const LiveScoring = () => {
     game3: { team1: '0', team2: '0' },
   });
 
+  // Check if user is a player in this match
+  const isMatchParticipant = dbUser && match && (
+    match.team1?.player1Id === dbUser.id ||
+    match.team1?.player2Id === dbUser.id ||
+    match.team2?.player1Id === dbUser.id ||
+    match.team2?.player2Id === dbUser.id
+  );
+
   // Check if user can score based on tournament settings
-  // Tournament must be ACTIVE, and either user is organizer or allowPlayerScoring is true
+  const scoringPermission = match?.tournament?.scoringPermission || 'ANYONE';
   const canScore = dbUser &&
     match?.tournament?.status === 'ACTIVE' &&
-    (isOrganizer || match?.tournament?.allowPlayerScoring !== false);
+    (isOrganizer ||
+      scoringPermission === 'ANYONE' ||
+      (scoringPermission === 'PARTICIPANTS' && isMatchParticipant));
 
   useEffect(() => {
     fetchMatch();
@@ -40,12 +50,18 @@ const LiveScoring = () => {
       } else if (match.tournament?.status !== 'ACTIVE') {
         toast.error('Tournament has not started yet. Please start the tournament first.');
         navigate(`/matches/${id}`);
-      } else if (!isOrganizer && match.tournament?.allowPlayerScoring === false) {
-        toast.error('Only organizers can update scores for this tournament');
-        navigate(`/matches/${id}`);
+      } else if (!isOrganizer) {
+        const perm = match.tournament?.scoringPermission || 'ANYONE';
+        if (perm === 'ORGANIZERS') {
+          toast.error('Only organizers can update scores for this tournament');
+          navigate(`/matches/${id}`);
+        } else if (perm === 'PARTICIPANTS' && !isMatchParticipant) {
+          toast.error('Only tournament participants and organizers can update scores');
+          navigate(`/matches/${id}`);
+        }
       }
     }
-  }, [loading, match, dbUser, isOrganizer, navigate, id, toast]);
+  }, [loading, match, dbUser, isOrganizer, isMatchParticipant, navigate, id, toast]);
 
   const fetchMatch = async () => {
     try {
@@ -75,28 +91,16 @@ const LiveScoring = () => {
           };
 
           setManualScores(newScores);
-          console.log('Pre-populated scores:', newScores);
         }
       }
     } catch (error) {
       toast.error('Failed to load match');
-      console.error('Error fetching match:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const saveManualScores = async () => {
-    console.log('=== Save Manual Scores Called ===');
-    console.log('Manual scores state:', JSON.stringify(manualScores, null, 2));
-    console.log('Game 1 Team 1:', manualScores.game1.team1, 'Type:', typeof manualScores.game1.team1);
-    console.log('Game 1 Team 2:', manualScores.game1.team2, 'Type:', typeof manualScores.game1.team2);
-    console.log('Game 2 Team 1:', manualScores.game2.team1, 'Type:', typeof manualScores.game2.team1);
-    console.log('Game 2 Team 2:', manualScores.game2.team2, 'Type:', typeof manualScores.game2.team2);
-    console.log('Game 3 Team 1:', manualScores.game3.team1, 'Type:', typeof manualScores.game3.team1);
-    console.log('Game 3 Team 2:', manualScores.game3.team2, 'Type:', typeof manualScores.game3.team2);
-    console.log('Match data:', match);
-
     setIsProcessing(true);
     try {
       // Build the games array from manual scores
@@ -105,7 +109,6 @@ const LiveScoring = () => {
       let team2Wins = 0;
 
       // Game 1
-      console.log('Checking Game 1:', manualScores.game1.team1 !== '', manualScores.game1.team2 !== '');
       if (manualScores.game1.team1 !== '' && manualScores.game1.team2 !== '') {
         const g1t1 = parseInt(manualScores.game1.team1);
         const g1t2 = parseInt(manualScores.game1.team2);
@@ -134,14 +137,10 @@ const LiveScoring = () => {
       }
 
       if (games.length === 0) {
-        console.log('Validation failed: No games entered');
         toast.error('Please enter at least one game score');
         setIsProcessing(false);
         return;
       }
-
-      console.log('Games array:', games);
-      console.log('Team1 wins:', team1Wins, 'Team2 wins:', team2Wins);
 
       // Determine winner - must have a clear winner
       let winnerId;
@@ -155,8 +154,6 @@ const LiveScoring = () => {
         setIsProcessing(false);
         return;
       }
-      console.log('Winner ID:', winnerId);
-
       const requestData = {
         team1Score: games.map(g => g.team1).join(','),
         team2Score: games.map(g => g.team2).join(','),
@@ -164,19 +161,10 @@ const LiveScoring = () => {
         matchStatus: 'COMPLETED',
       };
 
-      console.log('=== Sending API Request ===');
-      console.log('URL:', `/matches/${id}/score`);
-      console.log('Request data:', requestData);
-
       // Update match with manual scores
-      const response = await api.put(`/matches/${id}/score`, requestData);
-
-      console.log('=== API Response ===');
-      console.log('Response:', response);
-      console.log('Response data:', response.data);
+      const response = await matchAPI.updateScore(id, requestData);
 
       if (response.data.success) {
-        console.log('Success! Redirecting in 1.5 seconds...');
         const message = match.matchStatus === 'COMPLETED'
           ? 'Match scores updated successfully!'
           : 'Match scores saved successfully!';
@@ -184,12 +172,8 @@ const LiveScoring = () => {
         setTimeout(() => navigate(`/matches/${id}`), 1500);
       }
     } catch (error) {
-      console.error('=== Error Saving Scores ===');
-      console.error('Error:', error);
-      console.error('Error response:', error.response);
       toast.error(error.response?.data?.message || 'Failed to save scores');
     } finally {
-      console.log('Setting isProcessing to false');
       setIsProcessing(false);
     }
   };
@@ -387,10 +371,12 @@ const LiveScoring = () => {
           </div>
 
           {/* Save Button */}
-          <button
+          <Button
             onClick={saveManualScores}
             disabled={isProcessing}
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-brand-green to-green-600 text-white rounded-lg font-bold text-lg hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            variant="success"
+            size="lg"
+            className="w-full text-lg"
           >
             <Save size={20} />
             {isProcessing
@@ -398,7 +384,7 @@ const LiveScoring = () => {
               : match?.matchStatus === 'COMPLETED'
               ? 'Update Scores'
               : 'Save & Complete Match'}
-          </button>
+          </Button>
           <p className="text-xs text-muted text-center mt-3">
             {match?.matchStatus === 'COMPLETED'
               ? 'This will update the match scores'

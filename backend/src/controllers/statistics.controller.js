@@ -23,7 +23,6 @@ const getLeaderboard = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting leaderboard',
-      error: error.message,
     });
   }
 };
@@ -43,7 +42,6 @@ const getPlayerStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting player statistics',
-      error: error.message,
     });
   }
 };
@@ -67,7 +65,6 @@ const getPlayerMatchHistory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting player match history',
-      error: error.message,
     });
   }
 };
@@ -87,7 +84,6 @@ const getTournamentLeaderboard = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting tournament leaderboard',
-      error: error.message,
     });
   }
 };
@@ -105,7 +101,6 @@ const recalculateRankings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error recalculating rankings',
-      error: error.message,
     });
   }
 };
@@ -123,7 +118,6 @@ const initializeStatistics = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error initializing statistics',
-      error: error.message,
     });
   }
 };

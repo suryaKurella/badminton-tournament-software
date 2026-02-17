@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { FeatureFlagProvider } from './context/FeatureFlagContext';
 import Layout from './components/layout/Layout';
 import Navbar from './components/layout/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -25,26 +26,21 @@ const ClubDetails = lazy(() => import('./pages/clubs/ClubDetails'));
 const ClubCreate = lazy(() => import('./pages/clubs/ClubCreate'));
 const ClubEdit = lazy(() => import('./pages/clubs/ClubEdit'));
 
-import './App.css';
+// Admin pages
+const FeatureFlags = lazy(() => import('./pages/admin/FeatureFlags'));
 
-// Loading component
-const Loading = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-      <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
-    </div>
-  </div>
-);
+import { LoadingSpinner } from './components/common';
+import './App.css';
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <FeatureFlagProvider>
         <ToastProvider>
           <UsernameCheck>
             <Router>
-              <Suspense fallback={<Loading />}>
+              <Suspense fallback={<LoadingSpinner fullScreen message="Loading..." />}>
                 <Routes>
                   {/* Auth routes - full width, with navbar only */}
                   <Route path="/login" element={
@@ -118,6 +114,16 @@ function App() {
                       }
                     />
 
+                    {/* Admin routes */}
+                    <Route
+                      path="/admin/feature-flags"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <FeatureFlags />
+                        </ProtectedRoute>
+                      }
+                    />
+
                     {/* 404 */}
                     <Route path="*" element={<div className="error">Page not found</div>} />
                   </Route>
@@ -126,6 +132,7 @@ function App() {
             </Router>
           </UsernameCheck>
         </ToastProvider>
+        </FeatureFlagProvider>
       </AuthProvider>
     </ThemeProvider>
   );
