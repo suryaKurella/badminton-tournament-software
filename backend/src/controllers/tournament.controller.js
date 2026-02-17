@@ -1380,30 +1380,56 @@ const regenerateBracket = async (req, res) => {
       });
     }
 
-    // Can only regenerate if no matches have started
-    const hasStartedMatches = tournament.matches.some(
-      (match) => match.matchStatus === 'LIVE' || match.matchStatus === 'COMPLETED'
+    // Cannot regenerate if any matches are currently live
+    const hasLiveMatches = tournament.matches.some(
+      (match) => match.matchStatus === 'LIVE'
     );
 
-    if (hasStartedMatches) {
+    if (hasLiveMatches) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot regenerate bracket after matches have started',
+        message: 'Cannot regenerate draws while matches are in progress',
       });
     }
 
-    // Delete existing bracket and matches
-    await prisma.$transaction([
-      prisma.match.deleteMany({ where: { tournamentId: id } }),
-      prisma.bracketNode.deleteMany({ where: { tournamentId: id } }),
-      prisma.tournament.update({
-        where: { id },
-        data: {
-          bracketGenerated: false,
-          bracketGeneratedAt: null,
-        },
-      }),
-    ]);
+    const upcomingMatches = tournament.matches.filter(m => m.matchStatus === 'UPCOMING');
+    const hasCompletedMatches = tournament.matches.some(m => m.matchStatus === 'COMPLETED');
+
+    if (upcomingMatches.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No upcoming matches to regenerate',
+      });
+    }
+
+    // Get bracket node IDs linked to upcoming matches
+    const upcomingMatchIds = upcomingMatches.map(m => m.id);
+    const upcomingBracketNodeIds = tournament.bracketNodes
+      .filter(bn => upcomingMatchIds.includes(bn.matchId))
+      .map(bn => bn.id);
+
+    if (hasCompletedMatches) {
+      // Only delete upcoming matches and their bracket nodes, then regenerate those
+      await prisma.$transaction([
+        prisma.matchEvent.deleteMany({ where: { matchId: { in: upcomingMatchIds } } }),
+        prisma.match.deleteMany({ where: { id: { in: upcomingMatchIds } } }),
+        prisma.bracketNode.deleteMany({ where: { id: { in: upcomingBracketNodeIds } } }),
+      ]);
+    } else {
+      // No completed matches — full regeneration
+      await prisma.$transaction([
+        prisma.matchEvent.deleteMany({ where: { matchId: { in: upcomingMatchIds } } }),
+        prisma.match.deleteMany({ where: { tournamentId: id } }),
+        prisma.bracketNode.deleteMany({ where: { tournamentId: id } }),
+        prisma.tournament.update({
+          where: { id },
+          data: {
+            bracketGenerated: false,
+            bracketGeneratedAt: null,
+          },
+        }),
+      ]);
+    }
 
     // Generate new bracket
     const result = await bracketService.generateBracket(
@@ -1882,6 +1908,15 @@ const completeGroupStage = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Group stage is already complete',
+      });
+    }
+
+    // Allow admin to override advancingPerGroup before generating knockout
+    const { advancingPerGroup } = req.body;
+    if (advancingPerGroup && Number.isInteger(advancingPerGroup) && advancingPerGroup >= 1) {
+      await prisma.tournament.update({
+        where: { id },
+        data: { advancingPerGroup },
       });
     }
 
@@ -2569,6 +2604,104 @@ const declareWinners = async (req, res) => {
   }
 };
 
+// @desc    Revert playoffs for Round Robin tournament (undo Create Playoffs)
+// @route   POST /api/tournaments/:id/revert-playoffs
+// @access  Private (Organizer/Admin only)
+const revertPlayoffs = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        matches: true,
+        bracketNodes: true,
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check authorization
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this tournament',
+      });
+    }
+
+    if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'GROUP_KNOCKOUT') {
+      return res.status(400).json({
+        success: false,
+        message: 'This feature is only available for Round Robin and Group Knockout formats',
+      });
+    }
+
+    if (!tournament.groupStageComplete) {
+      return res.status(400).json({
+        success: false,
+        message: 'Playoffs have not been created yet',
+      });
+    }
+
+    // Check that no playoff matches have started or completed
+    const upcomingMatches = tournament.matches.filter(m => m.matchStatus === 'UPCOMING');
+    const hasLiveOrCompletedPlayoffs = tournament.matches.some(
+      m => m.matchStatus !== 'COMPLETED' && m.matchStatus !== 'UPCOMING'
+    );
+
+    if (hasLiveOrCompletedPlayoffs) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot revert playoffs while matches are in progress',
+      });
+    }
+
+    // UPCOMING matches are the playoff/knockout matches (all group/RR matches were COMPLETED before knockouts were created)
+    const upcomingMatchIds = upcomingMatches.map(m => m.id);
+
+    // For GROUP_KNOCKOUT, delete all KNOCKOUT bracket nodes; for ROUND_ROBIN, delete nodes linked to upcoming matches
+    const knockoutBracketNodeIds = tournament.format === 'GROUP_KNOCKOUT'
+      ? tournament.bracketNodes.filter(bn => bn.bracketType === 'KNOCKOUT').map(bn => bn.id)
+      : tournament.bracketNodes.filter(bn => upcomingMatchIds.includes(bn.matchId)).map(bn => bn.id);
+
+    await prisma.$transaction([
+      prisma.matchEvent.deleteMany({ where: { matchId: { in: upcomingMatchIds } } }),
+      prisma.match.deleteMany({ where: { id: { in: upcomingMatchIds } } }),
+      prisma.bracketNode.deleteMany({ where: { id: { in: knockoutBracketNodeIds } } }),
+      prisma.tournament.update({
+        where: { id },
+        data: { groupStageComplete: false },
+      }),
+    ]);
+
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+      io.to(`tournament-${id}`).emit('tournament:bracketGenerated', { tournamentId: id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Playoffs reverted. You can now declare winners or create new playoffs.',
+    });
+  } catch (error) {
+    console.error('Revert playoffs error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error reverting playoffs',
+    });
+  }
+};
+
 // @desc    Get potential partners for doubles registration
 // @route   GET /api/tournaments/:id/potential-partners
 // @access  Private
@@ -3235,4 +3368,5 @@ module.exports = {
   approveTeamWithPendingPartner,
   adminRegisterTeam,
   adminRegisterPlayer,
+  revertPlayoffs,
 };

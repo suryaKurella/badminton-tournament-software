@@ -30,6 +30,7 @@ const {
   approveTeamWithPendingPartner,
   adminRegisterTeam,
   adminRegisterPlayer,
+  revertPlayoffs,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 
@@ -71,5 +72,6 @@ router.post('/:id/shuffle-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZE
 // Round Robin completion routes
 router.post('/:id/round-robin-to-knockout', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), roundRobinToKnockout);
 router.post('/:id/declare-winners', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), declareWinners);
+router.post('/:id/revert-playoffs', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), revertPlayoffs);
 
 module.exports = router;

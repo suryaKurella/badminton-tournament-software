@@ -137,7 +137,7 @@ export const tournamentAPI = {
   reset: (id) => api.post(`/tournaments/${id}/reset`),
   // Group stage endpoints
   getGroupStandings: (id) => api.get(`/tournaments/${id}/group-standings`),
-  completeGroupStage: (id) => api.post(`/tournaments/${id}/complete-group-stage`),
+  completeGroupStage: (id, data) => api.post(`/tournaments/${id}/complete-group-stage`, data),
   // Manual group assignment endpoints
   getGroupAssignments: (id) => api.get(`/tournaments/${id}/group-assignments`),
   assignToGroup: (tournamentId, registrationId, groupName) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-group`, { groupName }),
@@ -146,6 +146,7 @@ export const tournamentAPI = {
   // Round Robin completion endpoints
   roundRobinToKnockout: (id, advancePlayers) => api.post(`/tournaments/${id}/round-robin-to-knockout`, { advancePlayers }),
   declareWinners: (id) => api.post(`/tournaments/${id}/declare-winners`),
+  revertPlayoffs: (id) => api.post(`/tournaments/${id}/revert-playoffs`),
   // Doubles partner selection
   getPotentialPartners: (id, search) => api.get(`/tournaments/${id}/potential-partners`, { params: { search } }),
   assignPartner: (tournamentId, registrationId, partnerRegistrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-partner`, { partnerRegistrationId }),
@@ -161,6 +162,7 @@ export const matchAPI = {
   updateScore: (id, data) => api.put(`/matches/${id}/score`, data),
   start: (id) => api.put(`/matches/${id}/start`),
   complete: (id, data) => api.put(`/matches/${id}/complete`, data),
+  delete: (id) => api.delete(`/matches/${id}`),
 };
 
 // User APIs

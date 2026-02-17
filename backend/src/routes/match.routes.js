@@ -14,6 +14,7 @@ const {
   getMatchTimeline,
   updateServingTeam,
   recordTimeout,
+  deleteMatch,
 } = require('../controllers/match.controller');
 const { protect, authorize } = require('../middleware/supabaseAuth.middleware');
 
@@ -27,6 +28,7 @@ router.put('/:id/score', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYE
 router.put('/:id/start', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), startMatch);
 router.put('/:id/complete', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), completeMatch);
 router.put('/:id/walkover', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), awardWalkover);
+router.delete('/:id', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), deleteMatch);
 
 // Live scoring endpoints
 router.post('/:id/score-point', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), recordPoint);

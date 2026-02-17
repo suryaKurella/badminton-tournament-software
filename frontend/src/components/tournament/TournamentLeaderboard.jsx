@@ -1,19 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import socketService from '../../services/socket';
 
-const TournamentLeaderboard = ({ tournamentId }) => {
+const TournamentLeaderboard = ({ tournamentId, matches }) => {
   const [entries, setEntries] = useState([]);
   const [isTeamLeaderboard, setIsTeamLeaderboard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const hasFetched = useRef(false);
+
+  // Re-fetch when matches prop changes (e.g. completedCount changes)
+  const completedCount = matches?.filter((m) => m.matchStatus === 'COMPLETED').length || 0;
 
   useEffect(() => {
-    fetchLeaderboard();
+    fetchLeaderboard(!hasFetched.current);
+    hasFetched.current = true;
+  }, [tournamentId, completedCount]);
+
+  // Also listen directly to socket events for real-time updates across tabs/profiles
+  useEffect(() => {
+    const handleMatchCompleted = () => {
+      fetchLeaderboard(false);
+    };
+
+    socketService.on('match:completed', handleMatchCompleted);
+    socketService.on('match:scoreUpdate', handleMatchCompleted);
+
+    return () => {
+      socketService.off('match:completed', handleMatchCompleted);
+      socketService.off('match:scoreUpdate', handleMatchCompleted);
+    };
   }, [tournamentId]);
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = async (showLoader = true) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/statistics/tournament/${tournamentId}/leaderboard`
       );

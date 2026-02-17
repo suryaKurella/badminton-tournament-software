@@ -108,6 +108,26 @@ class SocketService {
   onBracketGenerated(callback) {
     this.on('tournament:bracketGenerated', callback);
   }
+
+  onMatchDeleted(callback) {
+    this.on('match:deleted', callback);
+  }
+
+  onMatchWalkover(callback) {
+    this.on('match:walkover', callback);
+  }
+
+  onTournamentCompleted(callback) {
+    this.on('tournament:completed', callback);
+  }
+
+  onGroupStageComplete(callback) {
+    this.on('tournament:groupStageComplete', callback);
+  }
+
+  onKnockoutCreated(callback) {
+    this.on('tournament:knockoutCreated', callback);
+  }
 }
 
 const socketService = new SocketService();

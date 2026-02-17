@@ -45,24 +45,33 @@ const MatchDetails = () => {
     // Listen for real-time updates
     socketService.onMatchScoreUpdate((updatedMatch) => {
       if (updatedMatch.id === id) {
-        setMatch(updatedMatch);
+        setMatch((prev) => prev ? { ...prev, ...updatedMatch } : prev);
       }
     });
 
-    socketService.onMatchStarted((updatedMatch) => {
-      if (updatedMatch.id === id) {
-        setMatch(updatedMatch);
-      }
+    socketService.onMatchStarted(() => {
+      fetchMatch();
     });
 
-    socketService.onMatchCompleted((updatedMatch) => {
-      if (updatedMatch.id === id) {
-        setMatch(updatedMatch);
-      }
+    socketService.onMatchCompleted(() => {
+      fetchMatch();
+    });
+
+    socketService.onMatchWalkover(() => {
+      fetchMatch();
+    });
+
+    socketService.on('match:updated', () => {
+      fetchMatch();
     });
 
     return () => {
       socketService.leaveMatch(id);
+      socketService.off('match:scoreUpdate');
+      socketService.off('match:started');
+      socketService.off('match:completed');
+      socketService.off('match:walkover');
+      socketService.off('match:updated');
     };
   }, [id]);
 

@@ -1173,6 +1173,52 @@ const awardWalkover = async (req, res) => {
   }
 };
 
+const deleteMatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const match = await prisma.match.findUnique({
+      where: { id },
+      include: { tournament: true },
+    });
+
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+
+    if (match.matchStatus !== 'UPCOMING') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only UPCOMING matches can be deleted',
+      });
+    }
+
+    // Check authorization
+    const isOrganizer = match.tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this match' });
+    }
+
+    // Delete associated bracket node if exists, then the match
+    await prisma.$transaction([
+      prisma.bracketNode.deleteMany({ where: { matchId: id } }),
+      prisma.matchEvent.deleteMany({ where: { matchId: id } }),
+      prisma.match.delete({ where: { id } }),
+    ]);
+
+    if (io) {
+      io.to(`tournament-${match.tournamentId}`).emit('match:deleted', { matchId: id, tournamentId: match.tournamentId });
+    }
+
+    res.status(200).json({ success: true, message: 'Match deleted successfully' });
+  } catch (error) {
+    console.error('Delete match error:', error);
+    res.status(500).json({ success: false, message: 'Error deleting match', error: error.message });
+  }
+};
+
 module.exports = {
   setSocketIO,
   getMatchesByTournament,
@@ -1189,4 +1235,5 @@ module.exports = {
   getMatchTimeline,
   updateServingTeam,
   recordTimeout,
+  deleteMatch,
 };
