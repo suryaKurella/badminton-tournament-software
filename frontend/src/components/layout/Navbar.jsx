@@ -6,7 +6,7 @@ import { useFeatureFlag } from '../../context/FeatureFlagContext';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { user, dbUser, isAuthenticated, isAdmin, logout } = useAuth();
+  const { user, dbUser, isAuthenticated, isRoot, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const leaderboardEnabled = useFeatureFlag('leaderboard');
   const clubsEnabled = useFeatureFlag('club_features');
@@ -61,7 +61,7 @@ const Navbar = () => {
                 Clubs
               </Link>
             )}
-            {isAdmin && (
+            {isRoot && (
               <Link
                 to="/admin/feature-flags"
                 className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
@@ -177,7 +177,7 @@ const Navbar = () => {
                   Clubs
                 </Link>
               )}
-              {isAdmin && (
+              {isRoot && (
                 <Link
                   to="/admin/feature-flags"
                   className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"

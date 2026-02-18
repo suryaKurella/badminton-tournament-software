@@ -200,8 +200,9 @@ const SingleEliminationPreview = ({ participantCount }) => {
 };
 
 // --- ROUND ROBIN ---
-const RoundRobinPreview = ({ participantCount }) => {
+const RoundRobinPreview = ({ participantCount, entityLabel = 'Players' }) => {
   const count = Math.max(participantCount, 2);
+  const prefix = entityLabel === 'Teams' ? 'T' : 'P';
   const schedule = generateRRSchedule(count);
   const totalRounds = schedule.length;
   // Show up to 5 rounds, then collapse
@@ -217,11 +218,11 @@ const RoundRobinPreview = ({ participantCount }) => {
       {/* Player list column */}
       <div className="flex flex-col mr-1" style={{ minWidth: 56 }}>
         <div className="text-center mb-2">
-          <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500">Players</span>
+          <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500">{entityLabel}</span>
         </div>
         <div className="flex flex-col justify-around" style={{ height: totalH }}>
           {Array.from({ length: Math.min(count, 8) }, (_, i) => (
-            <PlayerSlot key={i} label={`P${i + 1}`} />
+            <PlayerSlot key={i} label={`${prefix}${i + 1}`} />
           ))}
           {count > 8 && (
             <span className="text-[9px] text-gray-400 text-center mt-1">+{count - 8} more</span>
@@ -249,7 +250,7 @@ const RoundRobinPreview = ({ participantCount }) => {
             <div className="flex flex-col justify-around" style={{ height: totalH }}>
               {roundMatches.map((m, mIdx) => (
                 <div key={mIdx} className="glass-surface px-2 py-1 rounded-lg text-center border border-brand-green/30" style={{ minWidth: 80 }}>
-                  <span className="text-[10px] font-medium text-brand-green">P{m.p1} vs P{m.p2}</span>
+                  <span className="text-[10px] font-medium text-brand-green">{prefix}{m.p1} vs {prefix}{m.p2}</span>
                 </div>
               ))}
             </div>
@@ -567,7 +568,7 @@ const DoubleEliminationPreview = ({ participantCount }) => {
 };
 
 // --- MAIN COMPONENT ---
-const TournamentStructurePreview = ({ format, participantCount, maxParticipants, numberOfGroups, advancingPerGroup }) => {
+const TournamentStructurePreview = ({ format, tournamentType, participantCount, maxParticipants, numberOfGroups, advancingPerGroup }) => {
   const count = participantCount || 0;
 
   if (count < 2) {
@@ -585,12 +586,15 @@ const TournamentStructurePreview = ({ format, participantCount, maxParticipants,
   }
 
   // Calculate stats per format
+  const isTeamFormat = tournamentType === 'DOUBLES' || tournamentType === 'MIXED';
+  const entityLabel = isTeamFormat ? 'Teams' : 'Players';
+  const perEntityLabel = isTeamFormat ? 'Per Team' : 'Per Player';
   let stats = [];
   if (format === 'SINGLE_ELIMINATION') {
     const bracketSize = nextPowerOf2(count);
     const byes = bracketSize - count;
     stats = [
-      { label: 'Players', value: count },
+      { label: entityLabel, value: count },
       { label: 'Rounds', value: calcRounds(bracketSize) },
       { label: 'Matches', value: bracketSize - 1 },
     ];
@@ -598,16 +602,16 @@ const TournamentStructurePreview = ({ format, participantCount, maxParticipants,
   } else if (format === 'DOUBLE_ELIMINATION') {
     const bracketSize = nextPowerOf2(count);
     stats = [
-      { label: 'Players', value: count },
+      { label: entityLabel, value: count },
       { label: 'W. Rounds', value: calcRounds(bracketSize) },
       { label: 'Matches', value: `${2 * bracketSize - 2}–${2 * bracketSize - 1}` },
     ];
   } else if (format === 'ROUND_ROBIN') {
     stats = [
-      { label: 'Players', value: count },
+      { label: entityLabel, value: count },
       { label: 'Rounds', value: calcRoundRobinRounds(count) },
       { label: 'Matches', value: calcRoundRobinMatches(count) },
-      { label: 'Per Player', value: count - 1 },
+      { label: perEntityLabel, value: count - 1 },
     ];
   } else if (format === 'GROUP_KNOCKOUT') {
     const groups = numberOfGroups || 4;
@@ -641,7 +645,7 @@ const TournamentStructurePreview = ({ format, participantCount, maxParticipants,
       <div className="overflow-x-auto pb-2">
         {format === 'SINGLE_ELIMINATION' && <SingleEliminationPreview participantCount={count} />}
         {format === 'DOUBLE_ELIMINATION' && <DoubleEliminationPreview participantCount={count} />}
-        {format === 'ROUND_ROBIN' && <RoundRobinPreview participantCount={count} />}
+        {format === 'ROUND_ROBIN' && <RoundRobinPreview participantCount={count} entityLabel={entityLabel} />}
         {format === 'GROUP_KNOCKOUT' && (
           <GroupKnockoutPreview participantCount={count} numberOfGroups={numberOfGroups} advancingPerGroup={advancingPerGroup} />
         )}

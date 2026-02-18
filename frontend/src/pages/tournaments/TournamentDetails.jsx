@@ -1058,7 +1058,12 @@ const TournamentDetails = () => {
       {structurePreviewEnabled && (
         <TournamentStructurePreview
           format={tournament.format}
-          participantCount={tournament.registrations?.filter(reg => reg.registrationStatus === 'APPROVED').length || 0}
+          tournamentType={tournament.tournamentType}
+          participantCount={
+            (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED')
+              ? (tournament.teams?.length || Math.floor((tournament.registrations?.filter(reg => reg.registrationStatus === 'APPROVED').length || 0) / 2))
+              : (tournament.registrations?.filter(reg => reg.registrationStatus === 'APPROVED').length || 0)
+          }
           maxParticipants={tournament.maxParticipants}
           numberOfGroups={tournament.numberOfGroups}
           advancingPerGroup={tournament.advancingPerGroup}
