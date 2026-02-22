@@ -80,6 +80,9 @@ model Tournament {
   advancingPerGroup  Int?               @default(2) @map("advancing_per_group")
   groupStageComplete Boolean            @default(false) @map("group_stage_complete")
 
+  // Declared winners (stored as JSON when tournament is completed)
+  winners            Json?
+
   // Club association (optional)
   clubId             String?            @map("club_id")
   membersOnly        Boolean            @default(false) @map("members_only")

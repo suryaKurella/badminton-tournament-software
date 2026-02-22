@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Pencil, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { tournamentAPI, matchAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -21,6 +21,7 @@ const TournamentDetails = () => {
   const structurePreviewEnabled = useFeatureFlag('tournament_structure_preview');
   const adminRegistrationEnabled = useFeatureFlag('admin_player_registration');
   const matchDeletionEnabled = useFeatureFlag('match_deletion');
+  const autoScoreEnabled = useFeatureFlag('dev_auto_score');
   const [tournament, setTournament] = useState(null);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,8 +43,19 @@ const TournamentDetails = () => {
   const [addTeamModal, setAddTeamModal] = useState({ isOpen: false, player1Id: '', player2Id: '', loading: false });
   const [addPlayerModal, setAddPlayerModal] = useState({ isOpen: false, playerId: '', loading: false });
   const [createMatchData, setCreateMatchData] = useState({ team1Id: '', team2Id: '', round: '' });
+  const [autoScoringMatchId, setAutoScoringMatchId] = useState(null);
+  const [autoScoringRound, setAutoScoringRound] = useState(null);
   const [collapsedRounds, setCollapsedRounds] = useState({});
   const [allUsers, setAllUsers] = useState([]);
+  const [winnersModal, setWinnersModal] = useState({
+    isOpen: false, mode: 'leaderboard', loading: false, submitting: false,
+    isTeam: false,
+    winners: [
+      { place: 1, name: '', player1Name: '', player2Name: '', teamId: '' },
+      { place: 2, name: '', player1Name: '', player2Name: '', teamId: '' },
+      { place: 3, name: '', player1Name: '', player2Name: '', teamId: '' },
+    ],
+  });
 
   useEffect(() => {
     // Wait for auth to finish loading before fetching tournament
@@ -56,34 +68,41 @@ const TournamentDetails = () => {
     socketService.connect();
     socketService.joinTournament(id);
 
-    // Listen for match updates
-    socketService.onMatchCreated(() => {
-      fetchMatches();
+    // Listen for match updates — use socket payloads directly where possible
+    socketService.onMatchCreated((match) => {
+      setMatches((prev) => {
+        if (prev.some((m) => m.id === match.id)) return prev;
+        return [...prev, match];
+      });
     });
 
-    socketService.onMatchUpdated(() => {
-      fetchMatches();
+    socketService.onMatchUpdated((match) => {
+      setMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, ...match } : m)));
     });
 
     socketService.onMatchScoreUpdate((match) => {
       setMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, ...match } : m)));
     });
 
-    socketService.onMatchStarted(() => {
+    socketService.onMatchStarted((match) => {
+      setMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, ...match } : m)));
+    });
+
+    socketService.onMatchCompleted((match) => {
+      // Immediately update the completed match from socket payload
+      setMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, ...match } : m)));
+      // Background refetch to pick up bracket advancement (advanceWinner doesn't emit socket events)
       fetchMatches();
     });
 
-    socketService.onMatchCompleted(() => {
-      fetchTournamentDetails();
-      fetchMatches();
+    socketService.onMatchDeleted((data) => {
+      const deletedId = data.matchId || data.id;
+      setMatches((prev) => prev.filter((m) => m.id !== deletedId));
     });
 
-    socketService.onMatchDeleted(() => {
-      fetchMatches();
-    });
-
-    socketService.onMatchWalkover(() => {
-      fetchTournamentDetails();
+    socketService.onMatchWalkover((match) => {
+      setMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, ...match } : m)));
+      // Background refetch for bracket advancement
       fetchMatches();
     });
 
@@ -112,8 +131,9 @@ const TournamentDetails = () => {
       fetchMatches();
     });
 
-    socketService.onTournamentCompleted(() => {
-      fetchTournamentDetails();
+    socketService.onTournamentCompleted((data) => {
+      // Update tournament status and winners from socket payload
+      setTournament((prev) => prev ? { ...prev, status: 'COMPLETED', winners: data.winners || prev.winners } : prev);
       fetchMatches();
     });
 
@@ -135,12 +155,16 @@ const TournamentDetails = () => {
     };
   }, [id, authLoading]);
 
-  // Fetch leaderboard for completed Round Robin tournaments
+  // Load persisted winners for completed Round Robin tournaments
   useEffect(() => {
     if (tournament?.format === 'ROUND_ROBIN' && tournament?.status === 'COMPLETED') {
-      fetchRoundRobinWinners();
+      if (tournament.winners && Array.isArray(tournament.winners) && tournament.winners.length > 0) {
+        setRoundRobinWinners(tournament.winners);
+      } else {
+        fetchRoundRobinWinners();
+      }
     }
-  }, [tournament?.format, tournament?.status, id]);
+  }, [tournament?.format, tournament?.status, tournament?.winners, id]);
 
   // Auto-select a valid playoff size based on team count
   useEffect(() => {
@@ -495,16 +519,168 @@ const TournamentDetails = () => {
   };
 
   const handleDeclareWinners = async () => {
-    setProcessingCompletion(true);
+    const isTeam = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+    const emptyWinners = [
+      { place: 1, name: '', player1Name: '', player2Name: '', teamId: '' },
+      { place: 2, name: '', player1Name: '', player2Name: '', teamId: '' },
+      { place: 3, name: '', player1Name: '', player2Name: '', teamId: '' },
+    ];
+
+    setWinnersModal({
+      isOpen: true, mode: 'leaderboard', loading: true, submitting: false,
+      isTeam, winners: emptyWinners,
+    });
+
     try {
-      const response = await tournamentAPI.declareWinners(id);
+      const response = await tournamentAPI.getLeaderboard(id);
+      if (response.data.success && response.data.data) {
+        const top3 = response.data.data.slice(0, 3);
+        const prefilled = [1, 2, 3].map((place, idx) => {
+          const entry = top3[idx];
+          if (!entry) return { place, name: '', player1Name: '', player2Name: '' };
+          if (isTeam) {
+            return {
+              place,
+              name: '',
+              player1Name: entry.player1?.fullName || entry.player1?.username || '',
+              player2Name: entry.player2?.fullName || entry.player2?.username || '',
+            };
+          }
+          return {
+            place,
+            name: entry.user?.fullName || entry.user?.username || '',
+            player1Name: '', player2Name: '',
+          };
+        });
+        setWinnersModal(prev => ({ ...prev, loading: false, winners: prefilled }));
+      } else {
+        setWinnersModal(prev => ({ ...prev, loading: false }));
+      }
+    } catch {
+      setWinnersModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleWinnersModalModeSwitch = (newMode) => {
+    if (newMode === winnersModal.mode) return;
+    if (newMode === 'custom') {
+      setWinnersModal(prev => ({
+        ...prev, mode: 'custom',
+        winners: [
+          { place: 1, name: '', player1Name: '', player2Name: '', teamId: '' },
+          { place: 2, name: '', player1Name: '', player2Name: '', teamId: '' },
+          { place: 3, name: '', player1Name: '', player2Name: '', teamId: '' },
+        ],
+      }));
+    } else {
+      handleDeclareWinners();
+    }
+  };
+
+  const handleWinnerTeamSelect = (idx, teamId) => {
+    const team = tournament.teams?.find(t => t.id === teamId);
+    const isTeam = winnersModal.isTeam;
+    const updated = [...winnersModal.winners];
+    if (!teamId) {
+      updated[idx] = { ...updated[idx], teamId: '', name: '', player1Name: '', player2Name: '' };
+    } else {
+      const p1 = team?.player1?.fullName || team?.player1?.username || '';
+      const p2 = team?.player2 ? (team.player2.fullName || team.player2.username || '') : '';
+      updated[idx] = {
+        ...updated[idx],
+        teamId,
+        name: isTeam ? '' : p1,
+        player1Name: isTeam ? p1 : '',
+        player2Name: isTeam ? p2 : '',
+      };
+    }
+    setWinnersModal(prev => ({ ...prev, winners: updated }));
+  };
+
+  const handleConfirmWinners = async () => {
+    const { winners, isTeam } = winnersModal;
+    const winnersPayload = winners.map(w => ({
+      place: w.place,
+      ...(isTeam
+        ? { player1Name: w.player1Name.trim(), player2Name: w.player2Name.trim() }
+        : { name: w.name.trim() }),
+    }));
+
+    const first = winnersPayload[0];
+    if (isTeam ? (!first.player1Name || !first.player2Name) : !first.name) {
+      toast.error('At least 1st place must be filled');
+      return;
+    }
+
+    setWinnersModal(prev => ({ ...prev, submitting: true }));
+    try {
+      const response = await tournamentAPI.declareWinners(id, winnersPayload);
       toast.success(response.data.message || 'Winners declared! Tournament completed.');
+      setWinnersModal(prev => ({ ...prev, isOpen: false, submitting: false }));
       fetchTournamentDetails();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to declare winners');
-    } finally {
-      setProcessingCompletion(false);
+      setWinnersModal(prev => ({ ...prev, submitting: false }));
     }
+  };
+
+  const handleAutoScore = async (matchId) => {
+    setAutoScoringMatchId(matchId);
+    try {
+      const response = await matchAPI.autoScore(matchId);
+      toast.success(response.data.message || 'Match auto-scored');
+      fetchTournamentDetails();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to auto-score match');
+    } finally {
+      setAutoScoringMatchId(null);
+    }
+  };
+
+  const handleAutoScoreAll = async () => {
+    const scorable = matches.filter(m => m.matchStatus !== 'COMPLETED' && m.team1Id && m.team2Id);
+    if (scorable.length === 0) {
+      toast.info('No matches to auto-score');
+      return;
+    }
+    setAutoScoringRound('all');
+    let scored = 0;
+    for (const match of scorable) {
+      try {
+        setAutoScoringMatchId(match.id);
+        await matchAPI.autoScore(match.id);
+        scored++;
+      } catch (error) {
+        toast.error(`Failed to score ${match.round}: ${error.response?.data?.message || 'Unknown error'}`);
+      }
+    }
+    setAutoScoringMatchId(null);
+    setAutoScoringRound(null);
+    toast.success(`Auto-scored ${scored}/${scorable.length} matches`);
+    fetchTournamentDetails();
+  };
+
+  const handleReopenTournament = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reopen Tournament?',
+      message: 'This will set the tournament back to Active so you can create playoffs or make changes.',
+      confirmText: 'Reopen',
+      cancelText: 'Cancel',
+      type: 'warning',
+      onConfirm: async () => {
+        setProcessingCompletion(true);
+        try {
+          await tournamentAPI.reopenTournament(id);
+          toast.success('Tournament reopened');
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to reopen tournament');
+        } finally {
+          setProcessingCompletion(false);
+        }
+      },
+    });
   };
 
   const handleAssignPartner = async (registrationId, partnerRegistrationId) => {
@@ -1453,13 +1629,15 @@ const TournamentDetails = () => {
         }
 
         // Get winner and runner-up from final
-        const getPlayerName = (team) => {
-          if (!team) return 'TBD';
-          const name = team.player1?.fullName || team.player1?.username || 'Unknown';
-          if (team.player2 && team.player2.id !== team.player1?.id) {
-            return `${name} & ${team.player2.fullName || team.player2.username}`;
+        const isDoubles = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+        const getPlayerDisplay = (team) => {
+          if (!team) return <span>TBD</span>;
+          const p1 = team.player1?.fullName || team.player1?.username || 'Unknown';
+          if (isDoubles && team.player2 && team.player2.id !== team.player1?.id) {
+            const p2 = team.player2.fullName || team.player2.username;
+            return <><span className="block">{p1}</span><span className="block">{p2}</span></>;
           }
-          return name;
+          return <span>{p1}</span>;
         };
 
         const winner = finalMatch.winnerId === finalMatch.team1Id ? finalMatch.team1 : finalMatch.team2;
@@ -1491,13 +1669,13 @@ const TournamentDetails = () => {
             <div className="flex items-end justify-center gap-2 sm:gap-4 mb-6">
               {/* 2nd Place */}
               <div className="flex flex-col items-center">
-                <div className="w-16 sm:w-24 h-20 sm:h-28 bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 rounded-t-lg flex items-end justify-center pb-2">
+                <div className={`${isDoubles ? 'w-24 sm:w-32' : 'w-16 sm:w-24'} h-20 sm:h-28 bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 rounded-t-lg flex items-end justify-center pb-2`}>
                   <span className="text-2xl sm:text-4xl font-bold text-gray-600 dark:text-gray-300">2</span>
                 </div>
-                <div className="bg-gray-200 dark:bg-gray-600 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
-                  <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 truncate px-1">
-                    {getPlayerName(runnerUp)}
-                  </p>
+                <div className={`bg-gray-200 dark:bg-gray-600 ${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} py-2 sm:py-3 text-center rounded-b-lg`}>
+                  <div className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 px-1">
+                    {getPlayerDisplay(runnerUp)}
+                  </div>
                   <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Runner-up</p>
                 </div>
               </div>
@@ -1505,27 +1683,27 @@ const TournamentDetails = () => {
               {/* 1st Place */}
               <div className="flex flex-col items-center -mt-4">
                 <div className="text-3xl sm:text-4xl mb-1">👑</div>
-                <div className="w-20 sm:w-28 h-28 sm:h-36 bg-gradient-to-t from-yellow-500 to-yellow-400 dark:from-yellow-600 dark:to-yellow-500 rounded-t-lg flex items-end justify-center pb-2">
+                <div className={`${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} h-28 sm:h-36 bg-gradient-to-t from-yellow-500 to-yellow-400 dark:from-yellow-600 dark:to-yellow-500 rounded-t-lg flex items-end justify-center pb-2`}>
                   <span className="text-3xl sm:text-5xl font-bold text-yellow-800 dark:text-yellow-200">1</span>
                 </div>
-                <div className="bg-yellow-400 dark:bg-yellow-600 w-24 sm:w-32 py-2 sm:py-3 text-center rounded-b-lg">
-                  <p className="text-xs sm:text-sm font-bold text-yellow-900 dark:text-yellow-100 truncate px-1">
-                    {getPlayerName(winner)}
-                  </p>
+                <div className={`bg-yellow-400 dark:bg-yellow-600 ${isDoubles ? 'w-32 sm:w-40' : 'w-24 sm:w-32'} py-2 sm:py-3 text-center rounded-b-lg`}>
+                  <div className="text-xs sm:text-sm font-bold text-yellow-900 dark:text-yellow-100 px-1">
+                    {getPlayerDisplay(winner)}
+                  </div>
                   <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300">Champion</p>
                 </div>
               </div>
 
               {/* 3rd Place */}
               <div className="flex flex-col items-center">
-                <div className="w-16 sm:w-24 h-16 sm:h-24 bg-gradient-to-t from-orange-400 to-orange-300 dark:from-orange-700 dark:to-orange-600 rounded-t-lg flex items-end justify-center pb-2">
+                <div className={`${isDoubles ? 'w-24 sm:w-32' : 'w-16 sm:w-24'} h-16 sm:h-24 bg-gradient-to-t from-orange-400 to-orange-300 dark:from-orange-700 dark:to-orange-600 rounded-t-lg flex items-end justify-center pb-2`}>
                   <span className="text-2xl sm:text-4xl font-bold text-orange-800 dark:text-orange-200">3</span>
                 </div>
-                <div className="bg-orange-300 dark:bg-orange-700 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
+                <div className={`bg-orange-300 dark:bg-orange-700 ${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} py-2 sm:py-3 text-center rounded-b-lg`}>
                   {thirdPlaceStatus === 'completed' && thirdPlaceWinner ? (
-                    <p className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-100 truncate px-1">
-                      {getPlayerName(thirdPlaceWinner)}
-                    </p>
+                    <div className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-100 px-1">
+                      {getPlayerDisplay(thirdPlaceWinner)}
+                    </div>
                   ) : thirdPlaceStatus === 'upcoming' ? (
                     <p className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-100 px-1">
                       TBD
@@ -1542,7 +1720,29 @@ const TournamentDetails = () => {
       })()}
 
       {/* Round Robin Winners Podium - Show when tournament is completed */}
-      {tournament.format === 'ROUND_ROBIN' && tournament.status === 'COMPLETED' && roundRobinWinners.length > 0 && (
+      {tournament.format === 'ROUND_ROBIN' && tournament.status === 'COMPLETED' && roundRobinWinners.length > 0 && (() => {
+        const isDoubles = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+        const getWinnerDisplay = (entry, fallback = 'TBD') => {
+          if (!entry) return <span>{fallback}</span>;
+          // Persisted winners format (from declare winners)
+          if (entry.place) {
+            if (isDoubles && entry.player1Name) {
+              return <><span className="block">{entry.player1Name}</span>{entry.player2Name && <span className="block">{entry.player2Name}</span>}</>;
+            }
+            if (entry.name) return <span>{entry.name}</span>;
+            if (entry.teamName) return <span>{entry.teamName}</span>;
+          }
+          // Leaderboard format (legacy fallback)
+          if (entry.isTeam || entry.player1) {
+            const p1 = entry.player1?.fullName || entry.player1?.username || '';
+            const p2 = entry.player2?.fullName || entry.player2?.username || '';
+            if (p1 && p2) return <><span className="block">{p1}</span><span className="block">{p2}</span></>;
+            return <span>{p1 || p2 || fallback}</span>;
+          }
+          // Singles leaderboard format
+          return <span>{entry.user?.fullName || entry.user?.username || fallback}</span>;
+        };
+        return (
         <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold mb-6 text-gray-900 dark:text-white text-center">
             Tournament Winners
@@ -1552,43 +1752,67 @@ const TournamentDetails = () => {
           <div className="flex items-end justify-center gap-2 sm:gap-4 mb-6">
             {/* 2nd Place */}
             <div className="flex flex-col items-center">
-              <div className="w-16 sm:w-24 h-20 sm:h-28 bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 rounded-t-lg flex items-end justify-center pb-2">
+              <div className={`${isDoubles ? 'w-24 sm:w-32' : 'w-16 sm:w-24'} h-20 sm:h-28 bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 rounded-t-lg flex items-end justify-center pb-2`}>
                 <span className="text-2xl sm:text-4xl font-bold text-gray-600 dark:text-gray-300">2</span>
               </div>
-              <div className="bg-gray-200 dark:bg-gray-600 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
-                <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 truncate px-1">
-                  {roundRobinWinners[1]?.user?.fullName || roundRobinWinners[1]?.user?.username || 'TBD'}
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Runner-up</p>
+              <div className={`bg-gray-200 dark:bg-gray-600 ${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} py-2 sm:py-3 text-center rounded-b-lg`}>
+                <div className="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-gray-200 px-1 leading-tight">
+                  {getWinnerDisplay(roundRobinWinners[1])}
+                </div>
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1">Runner-up</p>
               </div>
             </div>
 
             {/* 1st Place */}
             <div className="flex flex-col items-center -mt-4">
               <div className="text-3xl sm:text-4xl mb-1">👑</div>
-              <div className="w-20 sm:w-28 h-28 sm:h-36 bg-gradient-to-t from-yellow-500 to-yellow-400 dark:from-yellow-600 dark:to-yellow-500 rounded-t-lg flex items-end justify-center pb-2">
+              <div className={`${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} h-28 sm:h-36 bg-gradient-to-t from-yellow-500 to-yellow-400 dark:from-yellow-600 dark:to-yellow-500 rounded-t-lg flex items-end justify-center pb-2`}>
                 <span className="text-3xl sm:text-5xl font-bold text-yellow-800 dark:text-yellow-200">1</span>
               </div>
-              <div className="bg-yellow-400 dark:bg-yellow-600 w-24 sm:w-32 py-2 sm:py-3 text-center rounded-b-lg">
-                <p className="text-xs sm:text-sm font-bold text-yellow-900 dark:text-yellow-100 truncate px-1">
-                  {roundRobinWinners[0]?.user?.fullName || roundRobinWinners[0]?.user?.username || 'TBD'}
-                </p>
-                <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300">Champion</p>
+              <div className={`bg-yellow-400 dark:bg-yellow-600 ${isDoubles ? 'w-32 sm:w-40' : 'w-24 sm:w-32'} py-2 sm:py-3 text-center rounded-b-lg`}>
+                <div className="text-xs sm:text-sm font-bold text-yellow-900 dark:text-yellow-100 px-1 leading-tight">
+                  {getWinnerDisplay(roundRobinWinners[0])}
+                </div>
+                <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300 mt-1">Champion</p>
               </div>
             </div>
 
             {/* 3rd Place */}
             <div className="flex flex-col items-center">
-              <div className="w-16 sm:w-24 h-16 sm:h-24 bg-gradient-to-t from-orange-400 to-orange-300 dark:from-orange-700 dark:to-orange-600 rounded-t-lg flex items-end justify-center pb-2">
+              <div className={`${isDoubles ? 'w-24 sm:w-32' : 'w-16 sm:w-24'} h-16 sm:h-24 bg-gradient-to-t from-orange-400 to-orange-300 dark:from-orange-700 dark:to-orange-600 rounded-t-lg flex items-end justify-center pb-2`}>
                 <span className="text-2xl sm:text-4xl font-bold text-orange-800 dark:text-orange-200">3</span>
               </div>
-              <div className="bg-orange-300 dark:bg-orange-700 w-20 sm:w-28 py-2 sm:py-3 text-center rounded-b-lg">
-                <p className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-100 truncate px-1">
-                  {roundRobinWinners[2]?.user?.fullName || roundRobinWinners[2]?.user?.username || '-'}
-                </p>
-                <p className="text-[10px] sm:text-xs text-orange-700 dark:text-orange-400">3rd Place</p>
+              <div className={`bg-orange-300 dark:bg-orange-700 ${isDoubles ? 'w-28 sm:w-36' : 'w-20 sm:w-28'} py-2 sm:py-3 text-center rounded-b-lg`}>
+                <div className="text-[10px] sm:text-xs font-semibold text-orange-900 dark:text-orange-100 px-1 leading-tight">
+                  {getWinnerDisplay(roundRobinWinners[2], '-')}
+                </div>
+                <p className="text-[10px] sm:text-xs text-orange-700 dark:text-orange-400 mt-1">3rd Place</p>
               </div>
             </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* Reopen Tournament - for completed round robin tournaments */}
+      {tournament.format === 'ROUND_ROBIN' && tournament.status === 'COMPLETED' && canManageStatus && (
+        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border border-amber-500/30">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Tournament Completed</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Reopen the tournament to create playoffs or make changes.
+              </p>
+            </div>
+            <Button
+              onClick={handleReopenTournament}
+              loading={processingCompletion}
+              disabled={processingCompletion}
+              variant="secondary"
+              className="shrink-0"
+            >
+              Reopen Tournament
+            </Button>
           </div>
         </div>
       )}
@@ -1804,33 +2028,98 @@ const TournamentDetails = () => {
           </div>
         )}
 
-      {/* Playoff Admin Options - shown after Create Playoffs, before any playoff matches begin */}
+      {/* Playoff Admin Options - shown after Create Playoffs */}
       {tournament.format === 'ROUND_ROBIN' &&
         tournament.status === 'ACTIVE' &&
         tournament.groupStageComplete &&
         canManageStatus &&
-        matches.some(m => m.matchStatus === 'UPCOMING') &&
-        !matches.some(m => m.matchStatus === 'LIVE') && (
+        matches.some(m => !m.round?.includes('Group')) && (
           <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-amber-500/50">
             <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 dark:text-white flex items-center gap-2">
               <span>⚙️</span> Playoff Options
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Playoff matches have been created but not yet started. You can modify them before play begins.
+              Regenerate draws or go back to tournament options.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleRegeneratePlayoffDraws}
-                className="px-4 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white border border-amber-500/30 hover:border-amber-500 rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
-              >
-                🔄 Regenerate Draws
-              </button>
-              <button
-                onClick={handleRevertPlayoffs}
-                className="px-4 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 hover:border-blue-500 rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
-              >
-                ↩️ Back to Tournament Options
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleRegeneratePlayoffDraws}
+                  className="px-4 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white border border-amber-500/30 hover:border-amber-500 rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  🔄 Regenerate Draws
+                </button>
+                <button
+                  onClick={handleRevertPlayoffs}
+                  className="px-4 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30 hover:border-blue-500 rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  ↩️ Back to Tournament Options
+                </button>
+              </div>
+              <div className="glass-surface p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Create Match
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  Manually create a match between any two registered teams.
+                </p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Team 1:
+                    </label>
+                    <select
+                      value={createMatchData.team1Id}
+                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team1Id: e.target.value }))}
+                      className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                    >
+                      <option value="">Select team...</option>
+                      {tournament.teams?.map(team => (
+                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team2Id}>
+                          {getTeamDisplayName(team)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Team 2:
+                    </label>
+                    <select
+                      value={createMatchData.team2Id}
+                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team2Id: e.target.value }))}
+                      className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                    >
+                      <option value="">Select team...</option>
+                      {tournament.teams?.map(team => (
+                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team1Id}>
+                          {getTeamDisplayName(team)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                      Round name:
+                    </label>
+                    <input
+                      type="text"
+                      value={createMatchData.round}
+                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, round: e.target.value }))}
+                      placeholder="e.g. Semi-Final, Final, 3rd Place"
+                      className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25 placeholder:text-gray-400"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleCreateManualMatch}
+                  disabled={!createMatchData.team1Id || !createMatchData.team2Id}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  ➕ Create Match
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -1839,14 +2128,13 @@ const TournamentDetails = () => {
       {tournament.format === 'GROUP_KNOCKOUT' &&
         tournament.status === 'ACTIVE' &&
         canManageStatus &&
-        matches.some(m => m.matchStatus === 'UPCOMING' && !m.round?.includes('Group')) &&
-        !matches.some(m => !m.round?.includes('Group') && (m.matchStatus === 'LIVE' || m.matchStatus === 'COMPLETED')) && (
+        matches.some(m => !m.round?.includes('Group')) && (
           <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-amber-500/50">
             <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 dark:text-white flex items-center gap-2">
               <span>⚙️</span> Knockout Options
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Knockout matches have been generated from group standings. You can modify them before play begins.
+              Regenerate draws or go back to group stage.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-3">
@@ -2027,6 +2315,15 @@ const TournamentDetails = () => {
                       {match.round}
                     </span>
                     <StatusBadge status={match.matchStatus} />
+                    {autoScoreEnabled && isRoot && match.matchStatus !== 'COMPLETED' && match.team1Id && match.team2Id && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleAutoScore(match.id); }}
+                        disabled={autoScoringMatchId === match.id}
+                        className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
+                      >
+                        {autoScoringMatchId === match.id ? '⏳' : '⚡ Auto'}
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {match.scheduledTime && (
@@ -2153,13 +2450,51 @@ const TournamentDetails = () => {
                   </div>
 
                   {/* View Full Details Link */}
-                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-slate-600 text-center">
+                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center justify-center gap-4">
                     <Link
                       to={`/matches/${match.id}`}
                       className="text-brand-green hover:text-green-600 text-sm font-medium"
                     >
                       View Full Match Details →
                     </Link>
+                    {autoScoreEnabled && isRoot && match.matchStatus !== 'COMPLETED' && match.team1Id && match.team2Id && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleAutoScore(match.id); }}
+                        disabled={autoScoringMatchId === match.id}
+                        className="px-3 py-1 text-xs font-medium rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
+                      >
+                        {autoScoringMatchId === match.id ? 'Scoring...' : 'Auto Score'}
+                      </button>
+                    )}
+                    {matchDeletionEnabled && canManageStatus && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const t1 = match.team1?.teamName || match.team1?.player1?.fullName || 'TBD';
+                          const t2 = match.team2?.teamName || match.team2?.player1?.fullName || 'TBD';
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Delete Match?',
+                            message: `Delete ${match.round}: ${t1} vs ${t2}? This cannot be undone.`,
+                            confirmText: 'Delete',
+                            cancelText: 'Cancel',
+                            type: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                await matchAPI.delete(match.id);
+                                toast.success('Match deleted');
+                                await Promise.all([fetchTournamentDetails(), fetchMatches()]);
+                              } catch (error) {
+                                toast.error(error.response?.data?.message || 'Failed to delete match');
+                              }
+                            },
+                          });
+                        }}
+                        className="px-3 py-1 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -2220,9 +2555,20 @@ const TournamentDetails = () => {
             {/* Active/Upcoming Matches */}
             {activeMatches.length > 0 && (
               <div className="glass-card p-4 sm:p-6">
-                <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-white">
-                  Matches ({activeMatches.length})
-                </h2>
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                    Matches ({activeMatches.length})
+                  </h2>
+                  {autoScoreEnabled && isRoot && activeMatches.some(m => m.team1Id && m.team2Id) && (
+                    <button
+                      onClick={handleAutoScoreAll}
+                      disabled={autoScoringRound === 'all'}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {autoScoringRound === 'all' ? '⏳ Scoring...' : '⚡ Auto Score All'}
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {renderMatchesGroupedByRound(activeMatches)}
                 </div>
@@ -2283,6 +2629,159 @@ const TournamentDetails = () => {
         cancelText={confirmModal.cancelText}
         type={confirmModal.type || 'primary'}
       />
+
+      {/* Declare Winners Modal */}
+      {winnersModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-3xl"
+            onClick={() => !winnersModal.submitting && setWinnersModal(prev => ({ ...prev, isOpen: false }))}
+          />
+          <div className="relative glass-modal max-w-lg w-full p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setWinnersModal(prev => ({ ...prev, isOpen: false }))}
+              className="absolute top-4 right-4 text-muted hover:text-primary transition-colors p-1 hover:bg-light-surface dark:hover:bg-dark-surface rounded-lg"
+              disabled={winnersModal.submitting}
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-yellow-500 bg-opacity-10 dark:bg-opacity-20 flex items-center justify-center text-4xl">
+                🏆
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-center text-primary mb-2">Declare Winners</h2>
+            <p className="text-center text-muted mb-4 text-sm">
+              Choose how to determine the top 3 placements
+            </p>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => handleWinnersModalModeSwitch('leaderboard')}
+                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                  winnersModal.mode === 'leaderboard' ? 'bg-brand-blue text-white' : 'glass-button text-primary'
+                }`}
+                disabled={winnersModal.submitting}
+              >
+                From Leaderboard
+              </button>
+              <button
+                onClick={() => handleWinnersModalModeSwitch('custom')}
+                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                  winnersModal.mode === 'custom' ? 'bg-brand-blue text-white' : 'glass-button text-primary'
+                }`}
+                disabled={winnersModal.submitting}
+              >
+                Custom Entry
+              </button>
+            </div>
+
+            {winnersModal.loading ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner message="Loading leaderboard..." />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {winnersModal.winners.map((winner, idx) => (
+                    <div key={winner.place} className="glass-surface p-4 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl">
+                          {winner.place === 1 ? '🥇' : winner.place === 2 ? '🥈' : '🥉'}
+                        </span>
+                        <span className="font-semibold text-primary text-sm">
+                          {winner.place === 1 ? '1st Place' : winner.place === 2 ? '2nd Place' : '3rd Place'}
+                        </span>
+                      </div>
+
+                      {winnersModal.mode === 'custom' ? (
+                        <select
+                          value={winner.teamId}
+                          onChange={(e) => handleWinnerTeamSelect(idx, e.target.value)}
+                          className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25 text-sm"
+                          disabled={winnersModal.submitting}
+                        >
+                          <option value="">Select {winnersModal.isTeam ? 'team' : 'player'}...</option>
+                          {tournament.teams?.map(team => {
+                            const alreadySelected = winnersModal.winners.some((w, i) => i !== idx && w.teamId === team.id);
+                            return (
+                              <option key={team.id} value={team.id} disabled={alreadySelected}>
+                                {winnersModal.isTeam
+                                  ? getTeamDisplayName(team)
+                                  : (team.player1?.fullName || team.player1?.username || 'Unknown')}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      ) : winnersModal.isTeam ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            placeholder="Player 1 name"
+                            value={winner.player1Name}
+                            onChange={(e) => {
+                              const updated = [...winnersModal.winners];
+                              updated[idx] = { ...updated[idx], player1Name: e.target.value };
+                              setWinnersModal(prev => ({ ...prev, winners: updated }));
+                            }}
+                            className="w-full px-3 py-2 glass-surface rounded-lg text-primary focus:ring-2 focus:ring-brand-blue/25 placeholder:text-muted text-sm"
+                            disabled={winnersModal.submitting}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Player 2 name"
+                            value={winner.player2Name}
+                            onChange={(e) => {
+                              const updated = [...winnersModal.winners];
+                              updated[idx] = { ...updated[idx], player2Name: e.target.value };
+                              setWinnersModal(prev => ({ ...prev, winners: updated }));
+                            }}
+                            className="w-full px-3 py-2 glass-surface rounded-lg text-primary focus:ring-2 focus:ring-brand-blue/25 placeholder:text-muted text-sm"
+                            disabled={winnersModal.submitting}
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Player name"
+                          value={winner.name}
+                          onChange={(e) => {
+                            const updated = [...winnersModal.winners];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setWinnersModal(prev => ({ ...prev, winners: updated }));
+                          }}
+                          className="w-full px-3 py-2 glass-surface rounded-lg text-primary focus:ring-2 focus:ring-brand-blue/25 placeholder:text-muted text-sm"
+                          disabled={winnersModal.submitting}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setWinnersModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 px-6 py-3 glass-button text-primary font-semibold"
+                    disabled={winnersModal.submitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmWinners}
+                    disabled={winnersModal.submitting}
+                    className="flex-1 px-6 py-3 bg-brand-green hover:bg-green-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {winnersModal.submitting ? 'Declaring...' : 'Confirm Winners'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Player Modal */}
       {addPlayerModal.isOpen && (

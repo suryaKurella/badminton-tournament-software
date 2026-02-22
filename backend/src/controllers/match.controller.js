@@ -312,6 +312,7 @@ const updateMatchScore = async (req, res) => {
       include: {
         team1: true,
         team2: true,
+        bracketNode: { select: { id: true } },
       },
     });
 
@@ -375,21 +376,14 @@ const updateMatchScore = async (req, res) => {
         io.to(`tournament-${match.tournamentId}`).emit('match:completed', updatedMatch);
         io.to(`match-${id}`).emit('match:completed', updatedMatch);
 
-        // Update player statistics (non-blocking - errors logged but don't fail the request)
+        // Fire-and-forget: update stats and advance bracket without blocking response
         if (winnerId) {
-          try {
-            await statisticsService.updateMatchPlayerStatistics(id);
-          } catch (statsError) {
-            console.error('Error updating player statistics:', statsError);
-          }
-        }
+          statisticsService.invalidateLeaderboardCache(match.tournamentId);
+          statisticsService.updateMatchPlayerStatistics(id).catch(e => console.error('Stats update error:', e.message));
 
-        // Advance winner in bracket if applicable (non-blocking - errors logged but don't fail the request)
-        if (winnerId) {
-          try {
-            await bracketService.advanceWinner(id, winnerId);
-          } catch (bracketError) {
-            console.error('Error advancing bracket winner:', bracketError);
+          // Only advance bracket if the match has a bracket node (skips standalone RR matches)
+          if (match.bracketNode) {
+            bracketService.advanceWinner(id, winnerId).catch(e => console.error('Bracket advance error:', e.message));
           }
         }
       }
@@ -515,21 +509,15 @@ const completeMatch = async (req, res) => {
       },
       include: {
         ...MATCH_TEAM_INCLUDE,
+        bracketNode: { select: { id: true } },
       },
     });
 
-    // Update player statistics (non-blocking)
-    try {
-      await statisticsService.updateMatchPlayerStatistics(id);
-    } catch (statsError) {
-      console.error('Error updating player statistics:', statsError);
-    }
-
-    // Advance winner in bracket if applicable (non-blocking)
-    try {
-      await bracketService.advanceWinner(id, winnerId);
-    } catch (bracketError) {
-      // Non-critical - continue even if bracket advancement fails
+    // Invalidate leaderboard cache and update stats
+    statisticsService.invalidateLeaderboardCache(match.tournamentId);
+    statisticsService.updateMatchPlayerStatistics(id).catch(e => console.error('Stats update error:', e.message));
+    if (match.bracketNode) {
+      bracketService.advanceWinner(id, winnerId).catch(e => console.error('Bracket advance error:', e.message));
     }
 
     // Emit socket event
@@ -603,15 +591,14 @@ const recordPoint = async (req, res) => {
     if (result.matchComplete) {
       const match = await prisma.match.findUnique({
         where: { id },
-        include: { tournament: true },
+        include: { tournament: true, bracketNode: { select: { id: true } } },
       });
 
-      // Update player statistics
-      await statisticsService.updateMatchPlayerStatistics(id);
-
-      // Advance winner in bracket
-      if (match.winnerId) {
-        await bracketService.advanceWinner(id, match.winnerId);
+      // Fire-and-forget: invalidate cache, update stats, advance bracket
+      statisticsService.invalidateLeaderboardCache(match.tournamentId);
+      statisticsService.updateMatchPlayerStatistics(id).catch(e => console.error('Stats update error:', e.message));
+      if (match.winnerId && match.bracketNode) {
+        bracketService.advanceWinner(id, match.winnerId).catch(e => console.error('Bracket advance error:', e.message));
       }
 
       // Emit match completion
@@ -887,6 +874,7 @@ const awardWalkover = async (req, res) => {
       },
       include: {
         ...MATCH_TEAM_INCLUDE,
+        bracketNode: { select: { id: true } },
         tournament: {
           select: {
             id: true,
@@ -896,11 +884,10 @@ const awardWalkover = async (req, res) => {
       },
     });
 
-    // Advance winner in bracket
-    try {
-      await bracketService.advanceWinner(id, winnerId);
-    } catch (bracketError) {
-      // Non-critical - continue even if bracket advancement fails
+    // Fire-and-forget: invalidate cache, advance bracket
+    statisticsService.invalidateLeaderboardCache(match.tournamentId);
+    if (match.bracketNode) {
+      bracketService.advanceWinner(id, winnerId).catch(e => console.error('Bracket advance error:', e.message));
     }
 
     // Emit socket event
@@ -967,6 +954,8 @@ const deleteMatch = async (req, res) => {
       prisma.match.delete({ where: { id } }),
     ]);
 
+    statisticsService.invalidateLeaderboardCache(match.tournamentId);
+
     if (io) {
       io.to(`tournament-${match.tournamentId}`).emit('match:deleted', { matchId: id, tournamentId: match.tournamentId });
     }
@@ -975,6 +964,82 @@ const deleteMatch = async (req, res) => {
   } catch (error) {
     console.error('Delete match error:', error);
     res.status(500).json({ success: false, message: 'Error deleting match' });
+  }
+};
+
+// @desc    Auto-score a match with random results (dev/testing tool)
+// @route   POST /api/matches/:id/auto-score
+// @access  Private (protected by dev_auto_score feature flag)
+const autoScoreMatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const match = await prisma.match.findUnique({
+      where: { id },
+      include: {
+        ...MATCH_TEAM_INCLUDE,
+        bracketNode: { select: { id: true } },
+      },
+    });
+
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+
+    if (match.matchStatus === 'COMPLETED') {
+      return res.status(400).json({ success: false, message: 'Match is already completed' });
+    }
+
+    if (!match.team1Id || !match.team2Id) {
+      return res.status(400).json({ success: false, message: 'Match does not have both teams assigned' });
+    }
+
+    // Randomly pick winner
+    const team1Wins = Math.random() < 0.5;
+    const winnerId = team1Wins ? match.team1Id : match.team2Id;
+    const loserScore = Math.floor(Math.random() * 19) + 1; // 1-19
+
+    const team1Score = team1Wins ? '21' : String(loserScore);
+    const team2Score = team1Wins ? String(loserScore) : '21';
+
+    const updatedMatch = await prisma.match.update({
+      where: { id },
+      data: {
+        team1Score,
+        team2Score,
+        winnerId,
+        matchStatus: 'COMPLETED',
+        endTime: new Date(),
+        startTime: match.startTime || new Date(),
+      },
+      include: {
+        ...MATCH_TEAM_INCLUDE,
+      },
+    });
+
+    // Emit socket events
+    if (io) {
+      io.to(`tournament-${match.tournamentId}`).emit('match:scoreUpdate', updatedMatch);
+      io.to(`match-${id}`).emit('match:scoreUpdate', updatedMatch);
+      io.to(`tournament-${match.tournamentId}`).emit('match:completed', updatedMatch);
+      io.to(`match-${id}`).emit('match:completed', updatedMatch);
+    }
+
+    // Fire-and-forget: invalidate cache, update stats and advance bracket without blocking response
+    statisticsService.invalidateLeaderboardCache(match.tournamentId);
+    statisticsService.updateMatchPlayerStatistics(id).catch(e => console.error('Auto-score stats error:', e.message));
+    if (match.bracketNode) {
+      bracketService.advanceWinner(id, winnerId).catch(e => console.error('Auto-score bracket error:', e.message));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Auto-scored: ${team1Score}-${team2Score}`,
+      data: updatedMatch,
+    });
+  } catch (error) {
+    console.error('Auto-score error:', error);
+    res.status(500).json({ success: false, message: 'Error auto-scoring match' });
   }
 };
 
@@ -995,4 +1060,5 @@ module.exports = {
   updateServingTeam,
   recordTimeout,
   deleteMatch,
+  autoScoreMatch,
 };

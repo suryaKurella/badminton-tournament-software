@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const bracketService = require('../services/bracket.service');
+const statisticsService = require('../services/statistics.service');
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
@@ -1753,6 +1754,9 @@ const resetTournament = async (req, res) => {
       });
     });
 
+    // Invalidate leaderboard cache
+    statisticsService.invalidateLeaderboardCache(id);
+
     // Emit socket event for real-time update
     const io = req.app.get('io');
     if (io) {
@@ -2465,74 +2469,86 @@ const declareWinners = async (req, res) => {
       });
     }
 
-    // Check all matches are completed
-    const incompleteMatches = tournament.matches.filter(m => m.matchStatus !== 'COMPLETED').length;
-    if (incompleteMatches > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `${incompleteMatches} matches are not yet completed`,
+    const { winners: clientWinners } = req.body;
+
+    let winners;
+
+    if (clientWinners && Array.isArray(clientWinners) && clientWinners.length > 0) {
+      // Use client-provided winner names
+      winners = clientWinners.map((w, index) => ({
+        place: w.place || index + 1,
+        name: w.name || undefined,
+        player1Name: w.player1Name || undefined,
+        player2Name: w.player2Name || undefined,
+      }));
+    } else {
+      // Fallback: calculate standings from match data
+      const incompleteMatches = tournament.matches.filter(m => m.matchStatus !== 'COMPLETED').length;
+      if (incompleteMatches > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `${incompleteMatches} matches are not yet completed`,
+        });
+      }
+
+      const teamStats = {};
+      tournament.teams.forEach((team) => {
+        teamStats[team.id] = {
+          team,
+          wins: 0,
+          losses: 0,
+          pointsFor: 0,
+          pointsAgainst: 0,
+        };
       });
+
+      tournament.matches.forEach((match) => {
+        if (match.matchStatus !== 'COMPLETED' || !match.winnerId) return;
+
+        const stats1 = teamStats[match.team1Id];
+        const stats2 = teamStats[match.team2Id];
+
+        if (!stats1 || !stats2) return;
+
+        if (match.winnerId === match.team1Id) {
+          stats1.wins++;
+          stats2.losses++;
+        } else {
+          stats2.wins++;
+          stats1.losses++;
+        }
+
+        if (match.team1Score && typeof match.team1Score === 'string') {
+          const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+          stats1.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+        }
+        if (match.team2Score && typeof match.team2Score === 'string') {
+          const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+          stats2.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+        }
+      });
+
+      const sortedTeams = Object.values(teamStats).sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        const aDiff = a.pointsFor - a.pointsAgainst;
+        const bDiff = b.pointsFor - b.pointsAgainst;
+        if (bDiff !== aDiff) return bDiff - aDiff;
+        return b.pointsFor - a.pointsFor;
+      });
+
+      winners = sortedTeams.slice(0, 3).map((stat, index) => ({
+        place: index + 1,
+        teamId: stat.team.id,
+        teamName: stat.team.teamName,
+        wins: stat.wins,
+        losses: stat.losses,
+      }));
     }
 
-    // Calculate standings
-    const teamStats = {};
-    tournament.teams.forEach((team) => {
-      teamStats[team.id] = {
-        team,
-        wins: 0,
-        losses: 0,
-        pointsFor: 0,
-        pointsAgainst: 0,
-      };
-    });
-
-    tournament.matches.forEach((match) => {
-      if (match.matchStatus !== 'COMPLETED' || !match.winnerId) return;
-
-      const stats1 = teamStats[match.team1Id];
-      const stats2 = teamStats[match.team2Id];
-
-      if (!stats1 || !stats2) return;
-
-      if (match.winnerId === match.team1Id) {
-        stats1.wins++;
-        stats2.losses++;
-      } else {
-        stats2.wins++;
-        stats1.losses++;
-      }
-
-      if (match.team1Score && typeof match.team1Score === 'string') {
-        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
-        stats1.pointsFor += scores.reduce((sum, score) => sum + score, 0);
-      }
-      if (match.team2Score && typeof match.team2Score === 'string') {
-        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
-        stats2.pointsFor += scores.reduce((sum, score) => sum + score, 0);
-      }
-    });
-
-    // Sort and get top 3
-    const sortedTeams = Object.values(teamStats).sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      const aDiff = a.pointsFor - a.pointsAgainst;
-      const bDiff = b.pointsFor - b.pointsAgainst;
-      if (bDiff !== aDiff) return bDiff - aDiff;
-      return b.pointsFor - a.pointsFor;
-    });
-
-    const winners = sortedTeams.slice(0, 3).map((stat, index) => ({
-      place: index + 1,
-      teamId: stat.team.id,
-      teamName: stat.team.teamName,
-      wins: stat.wins,
-      losses: stat.losses,
-    }));
-
-    // Mark tournament as completed
+    // Mark tournament as completed and persist winners
     await prisma.tournament.update({
       where: { id },
-      data: { status: 'COMPLETED' },
+      data: { status: 'COMPLETED', winners },
     });
 
     // Emit socket event
@@ -2555,6 +2571,49 @@ const declareWinners = async (req, res) => {
       success: false,
       message: error.message || 'Error declaring winners',
     });
+  }
+};
+
+// @desc    Reopen a completed Round Robin tournament back to ACTIVE
+// @route   POST /api/tournaments/:id/reopen
+// @access  Private (Organizer/Admin only)
+const reopenTournament = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (tournament.status !== 'COMPLETED') {
+      return res.status(400).json({ success: false, message: 'Only completed tournaments can be reopened' });
+    }
+
+    await prisma.tournament.update({
+      where: { id },
+      data: { status: 'ACTIVE', winners: null },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+    }
+
+    res.status(200).json({ success: true, message: 'Tournament reopened' });
+  } catch (error) {
+    console.error('Reopen tournament error:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Error reopening tournament' });
   }
 };
 
@@ -2605,30 +2664,34 @@ const revertPlayoffs = async (req, res) => {
       });
     }
 
-    // Check that no playoff matches have started or completed
-    const upcomingMatches = tournament.matches.filter(m => m.matchStatus === 'UPCOMING');
-    const hasLiveOrCompletedPlayoffs = tournament.matches.some(
-      m => m.matchStatus !== 'COMPLETED' && m.matchStatus !== 'UPCOMING'
-    );
-
-    if (hasLiveOrCompletedPlayoffs) {
+    // Block only if matches are currently LIVE
+    const hasLiveMatches = tournament.matches.some(m => m.matchStatus === 'LIVE');
+    if (hasLiveMatches) {
       return res.status(400).json({
         success: false,
         message: 'Cannot revert playoffs while matches are in progress',
       });
     }
 
-    // UPCOMING matches are the playoff/knockout matches (all group/RR matches were COMPLETED before knockouts were created)
-    const upcomingMatchIds = upcomingMatches.map(m => m.id);
+    // For ROUND_ROBIN: group/RR matches were all COMPLETED before knockouts — playoff matches are non-group ones
+    // For GROUP_KNOCKOUT: knockout matches are those with KNOCKOUT bracket nodes
+    let playoffMatchIds;
+    let knockoutBracketNodeIds;
 
-    // For GROUP_KNOCKOUT, delete all KNOCKOUT bracket nodes; for ROUND_ROBIN, delete nodes linked to upcoming matches
-    const knockoutBracketNodeIds = tournament.format === 'GROUP_KNOCKOUT'
-      ? tournament.bracketNodes.filter(bn => bn.bracketType === 'KNOCKOUT').map(bn => bn.id)
-      : tournament.bracketNodes.filter(bn => upcomingMatchIds.includes(bn.matchId)).map(bn => bn.id);
+    if (tournament.format === 'GROUP_KNOCKOUT') {
+      knockoutBracketNodeIds = tournament.bracketNodes.filter(bn => bn.bracketType === 'KNOCKOUT').map(bn => bn.id);
+      const knockoutMatchIds = new Set(tournament.bracketNodes.filter(bn => bn.bracketType === 'KNOCKOUT' && bn.matchId).map(bn => bn.matchId));
+      playoffMatchIds = tournament.matches.filter(m => knockoutMatchIds.has(m.id)).map(m => m.id);
+    } else {
+      // ROUND_ROBIN: RR bracket nodes use bracketType 'MAIN'; playoff nodes use 'KNOCKOUT'/'THIRD_PLACE'
+      const groupMatchIds = new Set(tournament.bracketNodes.filter(bn => bn.bracketType === 'MAIN').map(bn => bn.matchId));
+      playoffMatchIds = tournament.matches.filter(m => !groupMatchIds.has(m.id)).map(m => m.id);
+      knockoutBracketNodeIds = tournament.bracketNodes.filter(bn => playoffMatchIds.includes(bn.matchId) || bn.bracketType === 'KNOCKOUT' || bn.bracketType === 'THIRD_PLACE').map(bn => bn.id);
+    }
 
     await prisma.$transaction([
-      prisma.matchEvent.deleteMany({ where: { matchId: { in: upcomingMatchIds } } }),
-      prisma.match.deleteMany({ where: { id: { in: upcomingMatchIds } } }),
+      prisma.matchEvent.deleteMany({ where: { matchId: { in: playoffMatchIds } } }),
+      prisma.match.deleteMany({ where: { id: { in: playoffMatchIds } } }),
       prisma.bracketNode.deleteMany({ where: { id: { in: knockoutBracketNodeIds } } }),
       prisma.tournament.update({
         where: { id },
@@ -3312,6 +3375,7 @@ module.exports = {
   shuffleGroups,
   roundRobinToKnockout,
   declareWinners,
+  reopenTournament,
   getPotentialPartners,
   assignPartner,
   approveTeamWithPendingPartner,

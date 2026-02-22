@@ -15,6 +15,7 @@ const {
   updateServingTeam,
   recordTimeout,
   deleteMatch,
+  autoScoreMatch,
 } = require('../controllers/match.controller');
 const { protect, authorize } = require('../middleware/supabaseAuth.middleware');
 const { requireFlag } = require('../middleware/featureFlag.middleware');
@@ -38,5 +39,8 @@ router.get('/:id/current-score', getCurrentScore);
 router.get('/:id/timeline', getMatchTimeline);
 router.put('/:id/serving-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updateServingTeam);
 router.post('/:id/timeout', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), recordTimeout);
+
+// Dev/testing endpoint
+router.post('/:id/auto-score', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER', 'PLAYER'), requireFlag('dev_auto_score'), autoScoreMatch);
 
 module.exports = router;

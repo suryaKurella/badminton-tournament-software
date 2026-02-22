@@ -125,7 +125,8 @@ export const tournamentAPI = {
   shuffleGroups: (id) => api.post(`/tournaments/${id}/shuffle-groups`),
   // Round Robin completion endpoints
   roundRobinToKnockout: (id, advancePlayers) => api.post(`/tournaments/${id}/round-robin-to-knockout`, { advancePlayers }),
-  declareWinners: (id) => api.post(`/tournaments/${id}/declare-winners`),
+  declareWinners: (id, winners) => api.post(`/tournaments/${id}/declare-winners`, { winners }),
+  reopenTournament: (id) => api.post(`/tournaments/${id}/reopen`),
   revertPlayoffs: (id) => api.post(`/tournaments/${id}/revert-playoffs`),
   getLeaderboard: (id) => api.get(`/statistics/tournament/${id}/leaderboard`),
   // Doubles partner selection
@@ -144,6 +145,7 @@ export const matchAPI = {
   start: (id) => api.put(`/matches/${id}/start`),
   complete: (id, data) => api.put(`/matches/${id}/complete`, data),
   delete: (id) => api.delete(`/matches/${id}`),
+  autoScore: (id) => api.post(`/matches/${id}/auto-score`),
 };
 
 // User APIs

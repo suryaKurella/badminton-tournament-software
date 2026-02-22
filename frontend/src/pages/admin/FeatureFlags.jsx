@@ -12,6 +12,7 @@ const FLAG_DESCRIPTIONS = {
   match_deletion: 'Allow admins to delete individual matches from tournaments',
   leaderboard: 'Show the Leaderboard in navigation and enable global rankings',
   admin_player_registration: 'Allow admins to directly register players/teams into tournaments',
+  dev_auto_score: 'Dev tool: one-click random score generation for matches (testing only)',
 };
 
 const FeatureFlags = () => {

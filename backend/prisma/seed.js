@@ -15,6 +15,7 @@ const featureFlags = [
   { name: 'match_deletion', enabled: true, description: 'Admin/organizer ability to delete individual matches' },
   { name: 'leaderboard', enabled: true, description: 'Global player leaderboard and ranking statistics' },
   { name: 'admin_player_registration', enabled: true, description: 'Admin ability to directly register players/teams for tournaments' },
+  { name: 'dev_auto_score', enabled: false, description: 'Dev tool: one-click auto-score matches with random results' },
 ];
 
 async function main() {

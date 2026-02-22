@@ -624,10 +624,13 @@ async function generateKnockoutFromGroups(tournamentId) {
   Object.keys(groupStandings).sort().forEach((groupName) => {
     const groupTeams = Object.values(groupStandings[groupName]);
 
-    // Sort by wins, then games won, then point differential
+    // Sort by wins, then points scored, then game diff, then point diff
     groupTeams.sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+      if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
+      const aGameDiff = a.gamesWon - a.gamesLost;
+      const bGameDiff = b.gamesWon - b.gamesLost;
+      if (bGameDiff !== aGameDiff) return bGameDiff - aGameDiff;
       const aDiff = a.pointsFor - a.pointsAgainst;
       const bDiff = b.pointsFor - b.pointsAgainst;
       return bDiff - aDiff;
@@ -1543,13 +1546,13 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
     }
   });
 
-  // Sort teams by wins, then points differential
+  // Sort teams by wins, then points scored, then point diff
   const sortedTeams = Object.values(teamStats).sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
     const aDiff = a.pointsFor - a.pointsAgainst;
     const bDiff = b.pointsFor - b.pointsAgainst;
-    if (bDiff !== aDiff) return bDiff - aDiff;
-    return b.pointsFor - a.pointsFor;
+    return bDiff - aDiff;
   });
 
   // Get top N teams
@@ -1667,7 +1670,19 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
     });
   }
 
-  return { bracketNodes, matchesToCreate, knockoutParticipants, numRounds };
+  // When only top 2 advance but there are 3rd/4th place teams, create a 3rd place match
+  let thirdPlaceMatchData = null;
+  if (advancePlayers === 2 && sortedTeams.length >= 4) {
+    const team3 = sortedTeams[2].team;
+    const team4 = sortedTeams[3].team;
+    thirdPlaceMatchData = {
+      team1Id: team3.id,
+      team2Id: team4.id,
+      round: '3rd Place',
+    };
+  }
+
+  return { bracketNodes, matchesToCreate, knockoutParticipants, numRounds, thirdPlaceMatchData };
 }
 
 /**
@@ -1749,6 +1764,25 @@ async function completeRoundRobinToKnockout(tournamentId, advancePlayers = 4) {
           await tx.bracketNode.update({
             where: { id: node.id },
             data: { matchId: match.id },
+          });
+        }
+      }
+
+      // Create 3rd place match if applicable (top 2 advance, 4+ teams total)
+      if (knockoutData.thirdPlaceMatchData) {
+        const thirdPlaceMatch = await tx.match.create({
+          data: {
+            ...knockoutData.thirdPlaceMatchData,
+            tournamentId,
+            matchStatus: 'UPCOMING',
+          },
+        });
+        // Link to the THIRD_PLACE bracket node
+        const thirdPlaceNode = createdNodes.find(n => n.bracketType === 'THIRD_PLACE');
+        if (thirdPlaceNode) {
+          await tx.bracketNode.update({
+            where: { id: thirdPlaceNode.id },
+            data: { matchId: thirdPlaceMatch.id },
           });
         }
       }

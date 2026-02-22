@@ -25,6 +25,7 @@ const {
   shuffleGroups,
   roundRobinToKnockout,
   declareWinners,
+  reopenTournament,
   getPotentialPartners,
   assignPartner,
   approveTeamWithPendingPartner,
@@ -73,6 +74,7 @@ router.post('/:id/shuffle-groups', protect, authorize('ROOT', 'ADMIN', 'ORGANIZE
 // Round Robin completion routes
 router.post('/:id/round-robin-to-knockout', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), roundRobinToKnockout);
 router.post('/:id/declare-winners', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), declareWinners);
+router.post('/:id/reopen', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), reopenTournament);
 router.post('/:id/revert-playoffs', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), revertPlayoffs);
 
 module.exports = router;
