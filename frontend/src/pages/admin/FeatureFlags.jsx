@@ -59,9 +59,9 @@ const FeatureFlags = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-6 sm:mb-8 pb-4 border-b-2 border-gray-200 dark:border-slate-700">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">Feature Flags</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Toggle features on or off across the application</p>
+      <div className="mb-6 sm:mb-8 pb-4 border-b-2 border-light-border dark:border-slate-700">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-light-text-primary dark:text-white">Feature Flags</h1>
+        <p className="text-light-text-muted dark:text-gray-400 mt-2 text-sm">Toggle features on or off across the application</p>
       </div>
 
       <div className="space-y-3">
@@ -72,18 +72,18 @@ const FeatureFlags = () => {
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white font-mono">
+                <h3 className="text-sm sm:text-base font-semibold text-light-text-primary dark:text-white font-mono">
                   {flag.name}
                 </h3>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                   flag.enabled
                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                    : 'bg-light-surface text-light-text-muted dark:bg-gray-800 dark:text-gray-400'
                 }`}>
                   {flag.enabled ? 'ON' : 'OFF'}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-xs sm:text-sm text-light-text-muted dark:text-gray-400 mt-1">
                 {FLAG_DESCRIPTIONS[flag.name] || flag.description || 'No description'}
               </p>
             </div>
@@ -92,7 +92,7 @@ const FeatureFlags = () => {
               onClick={() => handleToggle(flag)}
               disabled={toggling === flag.name}
               className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-green focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
-                flag.enabled ? 'bg-brand-green' : 'bg-gray-300 dark:bg-slate-600'
+                flag.enabled ? 'bg-brand-green' : 'bg-light-border dark:bg-slate-600'
               }`}
               role="switch"
               aria-checked={flag.enabled}

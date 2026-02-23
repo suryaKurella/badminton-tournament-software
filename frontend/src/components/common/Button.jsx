@@ -16,11 +16,11 @@ const Button = ({
     primary: 'btn-primary',
     success: 'btn-success',
     secondary: 'btn-secondary',
-    outline: 'bg-blue-600/10 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-600/20 hover:border-blue-600',
+    outline: 'bg-teal-600/10 text-teal-600 dark:text-blue-400 dark:bg-blue-600/10 hover:bg-teal-600 dark:hover:bg-blue-600 hover:text-white border border-teal-600/20 dark:border-blue-600/20 hover:border-teal-600 dark:hover:border-blue-600',
     error: 'bg-error/10 text-error hover:bg-error hover:text-white border border-error/20 hover:border-error',
     warning: 'bg-warning/10 text-warning hover:bg-warning hover:text-white border border-warning/20 hover:border-warning',
     ghost: 'hover:bg-light-surface dark:hover:bg-dark-surface text-primary hover:shadow-none hover:translate-y-0',
-    google: 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600',
+    google: 'bg-white dark:bg-slate-700 text-light-text-primary dark:text-white border-2 border-light-border dark:border-slate-600 hover:bg-light-surface dark:hover:bg-slate-600',
   };
 
   const sizes = {

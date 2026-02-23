@@ -120,7 +120,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
 
   if (!standings) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-8 text-light-text-muted dark:text-gray-400">
         No group standings available yet.
       </div>
     );
@@ -136,7 +136,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border text-xs text-gray-500 dark:text-gray-400">
+              <tr className="border-b border-border text-xs text-light-text-muted dark:text-gray-400">
                 <th className="text-left py-2 px-3">#</th>
                 <th className="text-left py-2 px-3">Player/Team</th>
                 <th className="text-center py-2 px-2">P</th>
@@ -166,7 +166,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                         {index + 1}
                       </span>
                     </td>
-                    <td className="py-2 px-3 font-medium text-gray-900 dark:text-white text-sm">
+                    <td className="py-2 px-3 font-medium text-light-text-primary dark:text-white text-sm">
                       {getTeamName(stat.team)}
                       {showQualified && (
                         <span className="ml-2 text-xs text-green-600 dark:text-green-400">Q</span>
@@ -219,13 +219,13 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                       ? 'bg-brand-green/10 border border-brand-green/30'
                       : isComplete
                       ? 'bg-gray-50 dark:bg-slate-800/50'
-                      : 'bg-gray-50 dark:bg-slate-700/30 hover:bg-gray-100 dark:hover:bg-slate-700/50'
+                      : 'bg-light-surface dark:bg-slate-700/30 hover:bg-gray-100 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className={`font-medium ${match.winnerId === match.team1Id ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        <span className={`font-medium ${match.winnerId === match.team1Id ? 'text-green-600 dark:text-green-400' : 'text-light-text-primary dark:text-white'}`}>
                           {getTeamName(match.team1)}
                         </span>
                         {isComplete && match.team1Score && (
@@ -235,7 +235,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                         )}
                       </div>
                       <div className="flex items-center justify-between text-sm mt-1">
-                        <span className={`font-medium ${match.winnerId === match.team2Id ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        <span className={`font-medium ${match.winnerId === match.team2Id ? 'text-green-600 dark:text-green-400' : 'text-light-text-primary dark:text-white'}`}>
                           {getTeamName(match.team2)}
                         </span>
                         {isComplete && match.team2Score && (
@@ -266,7 +266,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
               );
             })}
             {groupMatches.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+              <p className="text-sm text-light-text-muted dark:text-gray-400 text-center py-2">
                 No matches scheduled
               </p>
             )}
@@ -281,11 +281,11 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
       {/* Group Stage Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-light-text-primary dark:text-white flex items-center gap-2">
             <Users className="text-brand-green" size={24} />
             Group Stage
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-light-text-muted dark:text-gray-400 mt-1">
             {standings.numberOfGroups} groups, top {standings.groupStageComplete ? standings.advancingPerGroup : advancingPerGroup} from each advance
           </p>
         </div>
@@ -314,7 +314,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
         <div className="glass-card p-4 sm:p-6 border-2 border-brand-green/50">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Generate Knockout</h3>
+              <h3 className="font-semibold text-light-text-primary dark:text-white">Generate Knockout</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 All group matches are complete. Select how many advance and generate the knockout bracket.
               </p>
@@ -325,7 +325,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                 <select
                   value={advancingPerGroup}
                   onChange={(e) => setAdvancingPerGroup(Number(e.target.value))}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-green focus:border-brand-green"
+                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-green focus:border-brand-green"
                 >
                   {Array.from({ length: Math.max(...groupNames.map((g) => (standings.standings[g] || []).length)) }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -347,7 +347,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
               </Button>
             </div>
             <div className="glass-surface p-4 rounded-lg">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Create Match</h3>
+              <h3 className="font-semibold text-light-text-primary dark:text-white mb-2">Create Match</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Manually create a match between any two registered teams.
               </p>
@@ -357,7 +357,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                   <select
                     value={createMatchData.team1Id}
                     onChange={(e) => setCreateMatchData(prev => ({ ...prev, team1Id: e.target.value }))}
-                    className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                    className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
                   >
                     <option value="">Select team...</option>
                     {tournament.teams?.map(team => (
@@ -372,7 +372,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                   <select
                     value={createMatchData.team2Id}
                     onChange={(e) => setCreateMatchData(prev => ({ ...prev, team2Id: e.target.value }))}
-                    className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25"
+                    className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
                   >
                     <option value="">Select team...</option>
                     {tournament.teams?.map(team => (
@@ -389,7 +389,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                     value={createMatchData.round}
                     onChange={(e) => setCreateMatchData(prev => ({ ...prev, round: e.target.value }))}
                     placeholder="e.g. Semi-Final, Final"
-                    className="w-full px-3 py-2 glass-surface rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-blue/25 placeholder:text-gray-400"
+                    className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25 placeholder:text-gray-400"
                   />
                 </div>
               </div>
@@ -419,16 +419,16 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
                 onClick={() => toggleGroup(groupName)}
                 className="bg-gradient-to-r from-brand-green/20 to-transparent p-4 cursor-pointer flex items-center justify-between hover:from-brand-green/30 transition-all"
               >
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-bold text-light-text-primary dark:text-white">
                   Group {groupName}
-                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                  <span className="ml-2 text-sm font-normal text-light-text-muted dark:text-gray-400">
                     ({groupTeams.length} teams, {grpMatches.filter((m) => m.matchStatus === 'COMPLETED').length}/{grpMatches.length} played)
                   </span>
                 </h3>
                 {collapsedGroups[groupName] ? (
-                  <ChevronDown size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  <ChevronDown size={20} className="text-light-text-muted dark:text-gray-400 flex-shrink-0" />
                 ) : (
-                  <ChevronUp size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  <ChevronUp size={20} className="text-light-text-muted dark:text-gray-400 flex-shrink-0" />
                 )}
               </div>
               {renderGroupContent(groupName, groupTeams, grpMatches, advancingCount)}
@@ -440,7 +440,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
       {/* Knockout Stage Preview - Hide when tournament is complete (winner is known) */}
       {standings.groupStageComplete && tournament.status !== 'COMPLETED' && (
         <div className="glass-card p-6">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-light-text-primary dark:text-white mb-4 flex items-center gap-2">
             <Trophy className="text-yellow-500" size={20} />
             Knockout Stage
           </h3>
@@ -451,7 +451,7 @@ const GroupStageView = ({ tournament, matches, isOrganizer, onGroupStageComplete
       )}
 
       {/* Legend */}
-      <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-4">
+      <div className="text-xs text-light-text-muted dark:text-gray-400 flex flex-wrap gap-4">
         <span><span className="text-green-600 dark:text-green-400 font-semibold">Q</span> = Currently qualifying for knockout</span>
         <span>P = Played | W = Wins | L = Losses | +/- = Point Differential</span>
       </div>

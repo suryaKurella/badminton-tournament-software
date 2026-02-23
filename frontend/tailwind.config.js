@@ -14,15 +14,15 @@ export default {
           green: '#22C55E',
         },
 
-        // Light Mode Palette
+        // Light Mode Palette - Court Green & Sky Blue
         light: {
-          bg: '#F9FAFB',
+          bg: '#F0FDFA',
           card: '#FFFFFF',
-          surface: '#F3F4F6',
-          border: '#E5E7EB',
+          surface: '#F0FDF4',
+          border: '#D1E7DD',
           text: {
             primary: '#0F172A',
-            muted: '#64748B',
+            muted: '#4B6A5E',
           },
         },
 
@@ -52,6 +52,7 @@ export default {
         'scale-in': 'scaleIn 0.2s ease-out',
         'shimmer': 'shimmer 2s infinite',
         'shrink': 'shrink linear forwards',
+        'indeterminate-progress': 'indeterminateProgress 1.5s ease-in-out infinite',
       },
 
       keyframes: {
@@ -79,6 +80,11 @@ export default {
           '0%': { width: '100%' },
           '100%': { width: '0%' },
         },
+        indeterminateProgress: {
+          '0%': { transform: 'translateX(-100%)', width: '40%' },
+          '50%': { transform: 'translateX(100%)', width: '60%' },
+          '100%': { transform: 'translateX(300%)', width: '40%' },
+        },
       },
 
       boxShadow: {
@@ -88,8 +94,8 @@ export default {
         'dark-card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
 
         // Glass effect shadows
-        'glass': '0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
-        'glass-hover': '0 12px 48px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px rgba(59, 130, 246, 0.2)',
+        'glass': '0 8px 32px rgba(16, 185, 129, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+        'glass-hover': '0 12px 48px rgba(16, 185, 129, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px rgba(20, 184, 166, 0.2)',
         'glass-dark': '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         'glass-dark-hover': '0 12px 48px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 0 1px rgba(59, 130, 246, 0.3)',
       },
@@ -101,16 +107,16 @@ export default {
 
       // Glass-specific background colors
       backgroundColor: {
-        'glass-light': 'rgba(255, 255, 255, 0.7)',
-        'glass-light-hover': 'rgba(255, 255, 255, 0.85)',
+        'glass-light': 'rgba(255, 255, 255, 0.65)',
+        'glass-light-hover': 'rgba(255, 255, 255, 0.8)',
         'glass-dark': 'rgba(15, 26, 43, 0.7)',
         'glass-dark-hover': 'rgba(15, 26, 43, 0.85)',
       },
 
       // Glass border colors
       borderColor: {
-        'glass-light': 'rgba(255, 255, 255, 0.2)',
-        'glass-light-hover': 'rgba(255, 255, 255, 0.3)',
+        'glass-light': 'rgba(16, 185, 129, 0.12)',
+        'glass-light-hover': 'rgba(16, 185, 129, 0.2)',
         'glass-dark': 'rgba(255, 255, 255, 0.1)',
         'glass-dark-hover': 'rgba(255, 255, 255, 0.15)',
       },
@@ -118,7 +124,7 @@ export default {
       // Glass-specific gradients
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-glass-light': 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 100%)',
+        'gradient-glass-light': 'linear-gradient(135deg, rgba(240, 253, 250, 0.9) 0%, rgba(240, 253, 244, 0.6) 100%)',
         'gradient-glass-dark': 'linear-gradient(135deg, rgba(15, 26, 43, 0.9) 0%, rgba(15, 26, 43, 0.6) 100%)',
         'mesh-light': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',
         'mesh-dark': 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',

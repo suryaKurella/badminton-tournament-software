@@ -56,7 +56,7 @@ const Leaderboard = () => {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-gray-900 dark:text-white">
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-light-text-primary dark:text-white">
           Player Leaderboard
         </h1>
         <p className="text-muted">Top ranked badminton players based on ELO rating</p>

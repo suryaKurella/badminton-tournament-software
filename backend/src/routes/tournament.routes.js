@@ -14,6 +14,7 @@ const {
   togglePauseTournament,
   toggleRegistration,
   getBracket,
+  generateDraws,
   regenerateBracket,
   replaceNoShowTeam,
   resetTournament,
@@ -32,6 +33,10 @@ const {
   adminRegisterTeam,
   adminRegisterPlayer,
   revertPlayoffs,
+  generateCustomRoundRobinMatches,
+  createCustomMatch,
+  updatePlayoffTeam,
+  toggleRoundVisibility,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 const { requireFlag } = require('../middleware/featureFlag.middleware');
@@ -56,6 +61,7 @@ router.delete('/:id/registrations/:registrationId', protect, unregisterParticipa
 router.put('/:id/toggle-pause', protect, togglePauseTournament);
 router.put('/:id/toggle-registration', protect, toggleRegistration);
 router.get('/:id/bracket', optionalAuth, getBracket);
+router.post('/:id/generate-draws', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), generateDraws);
 router.post('/:id/regenerate-bracket', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), regenerateBracket);
 router.put('/:id/matches/:matchId/replace-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), replaceNoShowTeam);
 router.post('/:id/reset', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), resetTournament);
@@ -76,5 +82,9 @@ router.post('/:id/round-robin-to-knockout', protect, authorize('ROOT', 'ADMIN', 
 router.post('/:id/declare-winners', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), declareWinners);
 router.post('/:id/reopen', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), reopenTournament);
 router.post('/:id/revert-playoffs', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), revertPlayoffs);
+router.post('/:id/generate-round-robin', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), generateCustomRoundRobinMatches);
+router.post('/:id/create-custom-match', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), createCustomMatch);
+router.put('/:id/playoff-teams/:teamId', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updatePlayoffTeam);
+router.put('/:id/toggle-round-visibility', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), toggleRoundVisibility);
 
 module.exports = router;

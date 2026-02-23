@@ -72,6 +72,12 @@ model Tournament {
   // Scoring permissions
   scoringPermission  ScoringPermission  @default(ANYONE) @map("scoring_permission")
 
+  // Partner mode (for DOUBLES/MIXED ROUND_ROBIN)
+  partnerMode        PartnerMode        @default(FIXED) @map("partner_mode")
+
+  // Round visibility (admin can hide rounds from players)
+  hiddenRounds       Json               @default("[]") @map("hidden_rounds")
+
   // Registration control
   registrationClosed Boolean            @default(false) @map("registration_closed")
 
@@ -122,6 +128,7 @@ enum TournamentFormat {
   DOUBLE_ELIMINATION
   ROUND_ROBIN
   GROUP_KNOCKOUT
+  CUSTOM
 }
 
 enum SeedingMethod {
@@ -134,6 +141,11 @@ enum ScoringPermission {
   ANYONE
   PARTICIPANTS
   ORGANIZERS
+}
+
+enum PartnerMode {
+  FIXED
+  ROTATING
 }
 
 // Registration model

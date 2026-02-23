@@ -342,6 +342,137 @@ async function generateRoundRobinBracket(tournamentId, participants, seedingMeth
 }
 
 /**
+ * Generate Rotating Partner Round Robin bracket.
+ * Each round, players are paired with a different partner.
+ * Uses the circle method: fix player[0], rotate rest.
+ * Adjacent positions form teams → (0,1) vs (2,3), (4,5) vs (6,7), etc.
+ *
+ * @param {string} tournamentId
+ * @param {Array} participants - Solo team objects (one per player)
+ * @param {string} seedingMethod
+ */
+async function generateRotatingPartnerRR(tournamentId, participants, seedingMethod) {
+  const seededParticipants = await seedParticipants(participants, seedingMethod);
+  let n = seededParticipants.length;
+
+  if (n < 4) {
+    throw new Error('Need at least 4 players for rotating partner doubles round robin');
+  }
+
+  const bracketNodes = [];
+  const matchesToCreate = [];
+
+  // If odd number, add bye placeholder
+  const players = [...seededParticipants];
+  if (n % 2 !== 0) {
+    players.push(null);
+    n = players.length;
+  }
+
+  const numRounds = n - 1;
+  const numPairs = n / 2;
+  const hasSitOut = numPairs % 2 !== 0; // true when n not divisible by 4 (e.g. 10 players → 5 pairs)
+  const playerMatchCount = {}; // Track matches per player for balanced sit-outs
+
+  // Phase 1: Compute all match pairings in memory (no DB calls)
+  const plannedMatches = [];
+
+  for (let round = 0; round < numRounds; round++) {
+    const roundPlayers = [players[0]];
+    for (let i = 1; i < n; i++) {
+      const rotatedIdx = ((i - 1 + round) % (n - 1)) + 1;
+      roundPlayers.push(players[rotatedIdx]);
+    }
+
+    const pairs = [];
+    for (let i = 0; i < n; i += 2) {
+      pairs.push([roundPlayers[i], roundPlayers[i + 1]]);
+    }
+
+    let activePairs;
+    if (hasSitOut) {
+      let maxScore = -1, sitOutIdx = 0;
+      for (let p = 0; p < pairs.length; p++) {
+        const id1 = pairs[p][0]?.player1Id;
+        const id2 = pairs[p][1]?.player1Id;
+        const score = (playerMatchCount[id1] || 0) + (playerMatchCount[id2] || 0);
+        if (score > maxScore) { maxScore = score; sitOutIdx = p; }
+      }
+      activePairs = pairs.filter((_, idx) => idx !== sitOutIdx);
+    } else {
+      activePairs = [...pairs];
+    }
+
+    let matchPosition = 0;
+    for (let m = 0; m + 1 < activePairs.length; m += 2) {
+      const [p1, p2] = activePairs[m];
+      const [p3, p4] = activePairs[m + 1];
+      if (!p1 || !p2 || !p3 || !p4) continue;
+
+      plannedMatches.push({
+        team1Data: { tournamentId, player1Id: p1.player1Id, player2Id: p2.player1Id, teamName: `${p1.teamName} & ${p2.teamName}` },
+        team2Data: { tournamentId, player1Id: p3.player1Id, player2Id: p4.player1Id, teamName: `${p3.teamName} & ${p4.teamName}` },
+        roundNumber: round + 1,
+        position: matchPosition++,
+      });
+
+      playerMatchCount[p1.player1Id] = (playerMatchCount[p1.player1Id] || 0) + 1;
+      playerMatchCount[p2.player1Id] = (playerMatchCount[p2.player1Id] || 0) + 1;
+      playerMatchCount[p3.player1Id] = (playerMatchCount[p3.player1Id] || 0) + 1;
+      playerMatchCount[p4.player1Id] = (playerMatchCount[p4.player1Id] || 0) + 1;
+    }
+  }
+
+  // Phase 2: Bulk-create all teams in one DB call, then fetch them back
+  const allTeamData = plannedMatches.flatMap(m => [m.team1Data, m.team2Data]);
+  await prisma.team.createMany({ data: allTeamData });
+
+  // Fetch back created teams by tournamentId (only the ones we just created)
+  const createdTeams = await prisma.team.findMany({
+    where: { tournamentId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, player1Id: true, player2Id: true, teamName: true },
+  });
+
+  // Build lookup: "player1Id-player2Id-teamName" → team id
+  // Use a map that pops entries to handle duplicate pairings correctly
+  const teamLookup = {};
+  for (const team of createdTeams) {
+    const key = `${team.player1Id}-${team.player2Id}-${team.teamName}`;
+    if (!teamLookup[key]) teamLookup[key] = [];
+    teamLookup[key].push(team.id);
+  }
+  const getTeamId = (data) => {
+    const key = `${data.player1Id}-${data.player2Id}-${data.teamName}`;
+    return teamLookup[key]?.shift();
+  };
+
+  // Phase 3: Build bracket nodes and matches using looked-up team IDs
+  for (const pm of plannedMatches) {
+    const team1Id = getTeamId(pm.team1Data);
+    const team2Id = getTeamId(pm.team2Data);
+
+    const node = {
+      tournamentId,
+      roundNumber: pm.roundNumber,
+      position: pm.position,
+      bracketType: 'MAIN',
+    };
+
+    matchesToCreate.push({
+      node,
+      team1Id,
+      team2Id,
+      round: `Round ${pm.roundNumber}`,
+    });
+
+    bracketNodes.push(node);
+  }
+
+  return { bracketNodes, matchesToCreate };
+}
+
+/**
  * Get group name from index (A, B, C, ...)
  */
 function getGroupName(index) {
@@ -807,24 +938,38 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
 
     // If singles tournament and no teams, create teams from registrations
     if (tournament.tournamentType === 'SINGLES' && participants.length === 0) {
-      participants = await Promise.all(
-        tournament.registrations.map(async (reg) => {
-          return await prisma.team.create({
-            data: {
-              tournamentId,
-              player1Id: reg.userId,
-              player2Id: reg.userId, // Same player for both fields in singles
-              teamName: reg.user.fullName || reg.user.username,
-            },
-          });
-        })
-      );
+      const soloTeamData = tournament.registrations.map(reg => ({
+        tournamentId,
+        player1Id: reg.userId,
+        player2Id: reg.userId, // Same player for both fields in singles
+        teamName: reg.user.fullName || reg.user.username,
+      }));
+      await prisma.team.createMany({ data: soloTeamData });
+      participants = await prisma.team.findMany({
+        where: { tournamentId },
+        orderBy: { createdAt: 'asc' },
+      });
     }
 
-    // If doubles/mixed tournament, create teams from registrations with partners
+    // If ROTATING partner mode, create solo teams for each player (like singles)
+    if (tournament.partnerMode === 'ROTATING' && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length === 0) {
+      const soloTeamData = tournament.registrations.map(reg => ({
+        tournamentId,
+        player1Id: reg.userId,
+        player2Id: reg.userId,
+        teamName: reg.user.fullName || reg.user.username,
+      }));
+      await prisma.team.createMany({ data: soloTeamData });
+      participants = await prisma.team.findMany({
+        where: { tournamentId },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    // If doubles/mixed tournament with FIXED partners, create teams from registrations with partners
     // Calculate expected team count: each team needs 2 players
     const expectedTeamCount = Math.floor(tournament.registrations.length / 2);
-    if ((tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length < expectedTeamCount) {
+    if (tournament.partnerMode !== 'ROTATING' && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && participants.length < expectedTeamCount) {
       // Track users already in existing teams
       const usersInExistingTeams = new Set();
       for (const team of participants) {
@@ -927,7 +1072,11 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         bracketData = await generateDoubleEliminationBracket(tournamentId, participants, seedingMethod);
         break;
       case 'ROUND_ROBIN':
-        bracketData = await generateRoundRobinBracket(tournamentId, participants, seedingMethod);
+        if (tournament.partnerMode === 'ROTATING') {
+          bracketData = await generateRotatingPartnerRR(tournamentId, participants, seedingMethod);
+        } else {
+          bracketData = await generateRoundRobinBracket(tournamentId, participants, seedingMethod);
+        }
         break;
       case 'GROUP_KNOCKOUT':
         const numberOfGroups = tournament.numberOfGroups || Math.min(4, Math.floor(participants.length / 2));
@@ -941,6 +1090,10 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
           tournament.registrations // Pass registrations for manual group assignments
         );
         break;
+      case 'CUSTOM':
+        // CUSTOM format: teams are created above but no matches auto-generated
+        bracketData = { bracketNodes: [], matchesToCreate: [] };
+        break;
       default:
         throw new Error(`Unsupported tournament format: ${format}`);
     }
@@ -950,63 +1103,118 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
     const result = await prisma.$transaction(async (tx) => {
       // For GROUP_KNOCKOUT, update team group assignments first
       if (bracketData.teamUpdates) {
-        for (const update of bracketData.teamUpdates) {
-          await tx.team.update({
-            where: { id: update.teamId },
-            data: { groupName: update.groupName },
+        await Promise.all(
+          bracketData.teamUpdates.map(update =>
+            tx.team.update({
+              where: { id: update.teamId },
+              data: { groupName: update.groupName },
+            })
+          )
+        );
+      }
+
+      // Check if we can use the fast path (no nextNodeIndex connections — RR, GROUP_KNOCKOUT groups, CUSTOM)
+      const hasNodeConnections = bracketData.bracketNodes.some(n => n.nextNodeIndex !== undefined);
+
+      if (!hasNodeConnections && bracketData.bracketNodes.length > 0) {
+        // Fast path: bulk create nodes, then bulk create matches, then bulk link them
+        const nodeCreateData = bracketData.bracketNodes.map(n => {
+          const { nextNodeIndex, byeTeamId, ...data } = n;
+          return data;
+        });
+
+        await tx.bracketNode.createMany({ data: nodeCreateData });
+
+        // Fetch back created nodes to get IDs
+        const createdNodes = await tx.bracketNode.findMany({
+          where: { tournamentId },
+          orderBy: [{ roundNumber: 'asc' }, { position: 'asc' }, { bracketType: 'asc' }],
+        });
+
+        // Build lookup: "roundNumber-position-bracketType" → node
+        const nodeLookup = {};
+        for (const node of createdNodes) {
+          nodeLookup[`${node.roundNumber}-${node.position}-${node.bracketType}`] = node;
+        }
+
+        // Bulk create matches
+        const matchDataArray = bracketData.matchesToCreate.map(matchData => {
+          const { node: nodeRef, ...rest } = matchData;
+          return { ...rest, tournamentId, matchStatus: 'UPCOMING' };
+        });
+
+        await tx.match.createMany({ data: matchDataArray });
+
+        // Fetch back created matches to get IDs
+        const createdMatches = await tx.match.findMany({
+          where: { tournamentId, matchStatus: 'UPCOMING' },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, round: true, team1Id: true, team2Id: true },
+        });
+
+        // Link matches to bracket nodes via bulk updates
+        // Match order corresponds to matchesToCreate order
+        const updatePromises = [];
+        for (let i = 0; i < bracketData.matchesToCreate.length; i++) {
+          const nodeRef = bracketData.matchesToCreate[i].node;
+          const key = `${nodeRef.roundNumber}-${nodeRef.position}-${nodeRef.bracketType}`;
+          const node = nodeLookup[key];
+          const match = createdMatches[i];
+          if (node && match) {
+            updatePromises.push(
+              tx.bracketNode.update({ where: { id: node.id }, data: { matchId: match.id } })
+            );
+          }
+        }
+        await Promise.all(updatePromises);
+      } else {
+        // Slow path: sequential creation for elimination brackets with node connections
+        const createdNodes = [];
+        for (const nodeData of bracketData.bracketNodes) {
+          const { nextNodeIndex, byeTeamId, ...nodeCreateData } = nodeData;
+          const node = await tx.bracketNode.create({
+            data: nodeCreateData,
+          });
+          createdNodes.push({ ...node, nextNodeIndex, byeTeamId });
+        }
+
+        // Create matches and link to bracket nodes
+        for (const matchData of bracketData.matchesToCreate) {
+          const { node: nodeRef, ...matchCreateData } = matchData;
+
+          const nodeIndex = bracketData.bracketNodes.findIndex(
+            (n) =>
+              n.roundNumber === nodeRef.roundNumber &&
+              n.position === nodeRef.position &&
+              n.bracketType === nodeRef.bracketType
+          );
+
+          const createdNode = createdNodes[nodeIndex];
+
+          const match = await tx.match.create({
+            data: {
+              ...matchCreateData,
+              tournamentId,
+              matchStatus: 'UPCOMING',
+            },
+          });
+
+          await tx.bracketNode.update({
+            where: { id: createdNode.id },
+            data: { matchId: match.id },
           });
         }
-      }
 
-      // Create all bracket nodes first
-      const createdNodes = [];
-      for (const nodeData of bracketData.bracketNodes) {
-        const { nextNodeIndex, byeTeamId, ...nodeCreateData } = nodeData;
-        const node = await tx.bracketNode.create({
-          data: nodeCreateData,
-        });
-        createdNodes.push({ ...node, nextNodeIndex, byeTeamId });
-      }
-
-      // Create matches and link to bracket nodes
-      for (const matchData of bracketData.matchesToCreate) {
-        const { node: nodeRef, ...matchCreateData } = matchData;
-
-        // Find the created node
-        const nodeIndex = bracketData.bracketNodes.findIndex(
-          (n) =>
-            n.roundNumber === nodeRef.roundNumber &&
-            n.position === nodeRef.position &&
-            n.bracketType === nodeRef.bracketType
-        );
-
-        const createdNode = createdNodes[nodeIndex];
-
-        // Create match
-        const match = await tx.match.create({
-          data: {
-            ...matchCreateData,
-            tournamentId,
-            matchStatus: 'UPCOMING',
-          },
-        });
-
-        // Update bracket node with match reference
-        await tx.bracketNode.update({
-          where: { id: createdNode.id },
-          data: { matchId: match.id },
-        });
-      }
-
-      // Update bracket node connections (nextNodeId)
-      for (let i = 0; i < createdNodes.length; i++) {
-        const node = createdNodes[i];
-        if (node.nextNodeIndex !== undefined) {
-          const nextNode = createdNodes[node.nextNodeIndex];
-          await tx.bracketNode.update({
-            where: { id: node.id },
-            data: { nextNodeId: nextNode.id },
-          });
+        // Update bracket node connections (nextNodeId)
+        for (let i = 0; i < createdNodes.length; i++) {
+          const node = createdNodes[i];
+          if (node.nextNodeIndex !== undefined) {
+            const nextNode = createdNodes[node.nextNodeIndex];
+            await tx.bracketNode.update({
+              where: { id: node.id },
+              data: { nextNodeId: nextNode.id },
+            });
+          }
         }
       }
 
@@ -1019,7 +1227,7 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         },
       });
 
-      return { nodes: createdNodes };
+      return { success: true };
     }, { timeout: 30000 }); // 30 second timeout for large tournaments
 
     return {
@@ -1485,8 +1693,8 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
     throw new Error('Tournament not found');
   }
 
-  if (tournament.format !== 'ROUND_ROBIN') {
-    throw new Error('Tournament is not in ROUND_ROBIN format');
+  if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'CUSTOM') {
+    throw new Error('Tournament is not in ROUND_ROBIN or CUSTOM format');
   }
 
   // Check if all round robin matches are completed
@@ -1501,65 +1709,99 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
     throw new Error(`${incompleteMatches} matches are not yet completed`);
   }
 
-  // Calculate standings for each team
-  const teamStats = {};
+  let knockoutParticipants;
 
-  tournament.teams.forEach((team) => {
-    teamStats[team.id] = {
-      team,
-      wins: 0,
-      losses: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-    };
-  });
+  if (tournament.partnerMode === 'ROTATING') {
+    // For ROTATING mode: use individual player rankings, then pair top players into new teams
+    const statisticsService = require('./statistics.service');
+    const leaderboardResult = await statisticsService.getTournamentLeaderboard(tournamentId);
+    const leaderboard = leaderboardResult.data || [];
 
-  // Calculate stats from completed matches
-  tournament.matches.forEach((match) => {
-    if (match.matchStatus !== 'COMPLETED' || !match.winnerId) return;
-
-    const team1 = match.team1;
-    const team2 = match.team2;
-    if (!team1 || !team2) return;
-
-    const stats1 = teamStats[team1.id];
-    const stats2 = teamStats[team2.id];
-
-    if (!stats1 || !stats2) return;
-
-    if (match.winnerId === team1.id) {
-      stats1.wins++;
-      stats2.losses++;
-    } else {
-      stats2.wins++;
-      stats1.losses++;
+    const neededPlayers = advancePlayers * 2;
+    if (leaderboard.length < neededPlayers) {
+      throw new Error(`Need at least ${neededPlayers} players for Top ${advancePlayers} playoffs, but only ${leaderboard.length} players found`);
     }
 
-    // Calculate points from scores
-    if (match.team1Score && typeof match.team1Score === 'string') {
-      const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
-      stats1.pointsFor += scores.reduce((sum, score) => sum + score, 0);
-    }
-    if (match.team2Score && typeof match.team2Score === 'string') {
-      const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
-      stats2.pointsFor += scores.reduce((sum, score) => sum + score, 0);
-    }
-  });
+    // Take top N*2 players
+    const topPlayers = leaderboard.slice(0, neededPlayers);
 
-  // Sort teams by wins, then points scored, then point diff
-  const sortedTeams = Object.values(teamStats).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
-    const aDiff = a.pointsFor - a.pointsAgainst;
-    const bDiff = b.pointsFor - b.pointsAgainst;
-    return bDiff - aDiff;
-  });
+    // Pair them: 1st + last, 2nd + 2nd-last, etc. for balanced teams
+    const playoffTeams = [];
+    for (let i = 0; i < advancePlayers; i++) {
+      const strongPlayer = topPlayers[i];
+      const weakPlayer = topPlayers[neededPlayers - 1 - i];
+      const p1Name = strongPlayer.user?.fullName || strongPlayer.user?.username || '';
+      const p2Name = weakPlayer.user?.fullName || weakPlayer.user?.username || '';
 
-  // Get top N teams
-  const knockoutParticipants = sortedTeams.slice(0, advancePlayers).map((stat, index) => ({
-    ...stat.team,
-    seed: index + 1,
-  }));
+      const team = await prisma.team.create({
+        data: {
+          tournamentId,
+          player1Id: strongPlayer.playerId,
+          player2Id: weakPlayer.playerId,
+          teamName: `${p1Name} & ${p2Name}`,
+        },
+      });
+      playoffTeams.push({ ...team, seed: i + 1 });
+    }
+
+    knockoutParticipants = playoffTeams;
+  } else {
+    // Standard team-based rankings for FIXED partner mode
+    const teamStats = {};
+
+    tournament.teams.forEach((team) => {
+      teamStats[team.id] = {
+        team,
+        wins: 0,
+        losses: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+      };
+    });
+
+    tournament.matches.forEach((match) => {
+      if (match.matchStatus !== 'COMPLETED' || !match.winnerId) return;
+
+      const team1 = match.team1;
+      const team2 = match.team2;
+      if (!team1 || !team2) return;
+
+      const stats1 = teamStats[team1.id];
+      const stats2 = teamStats[team2.id];
+
+      if (!stats1 || !stats2) return;
+
+      if (match.winnerId === team1.id) {
+        stats1.wins++;
+        stats2.losses++;
+      } else {
+        stats2.wins++;
+        stats1.losses++;
+      }
+
+      if (match.team1Score && typeof match.team1Score === 'string') {
+        const scores = match.team1Score.split(',').map(s => parseInt(s, 10) || 0);
+        stats1.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+      }
+      if (match.team2Score && typeof match.team2Score === 'string') {
+        const scores = match.team2Score.split(',').map(s => parseInt(s, 10) || 0);
+        stats2.pointsFor += scores.reduce((sum, score) => sum + score, 0);
+      }
+    });
+
+    const sortedTeams = Object.values(teamStats).sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
+      const aDiff = a.pointsFor - a.pointsAgainst;
+      const bDiff = b.pointsFor - b.pointsAgainst;
+      return bDiff - aDiff;
+    });
+
+    knockoutParticipants = sortedTeams.slice(0, advancePlayers).map((stat, index) => ({
+      ...stat.team,
+      seed: index + 1,
+    }));
+  }
 
   if (knockoutParticipants.length < 2) {
     throw new Error('Not enough teams for knockout stage');
@@ -1801,6 +2043,54 @@ async function completeRoundRobinToKnockout(tournamentId, advancePlayers = 4) {
   }
 }
 
+/**
+ * Generate round robin matches for a CUSTOM format tournament (on demand)
+ */
+async function generateCustomRoundRobin(tournamentId) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: { teams: true },
+  });
+
+  if (!tournament) throw new Error('Tournament not found');
+  if (tournament.format !== 'CUSTOM') throw new Error('Only available for Custom format');
+  if (tournament.teams.length < 2) throw new Error('Need at least 2 teams to generate matches');
+
+  const bracketData = await generateRoundRobinBracket(
+    tournamentId, tournament.teams, tournament.seedingMethod || 'RANDOM'
+  );
+
+  const result = await prisma.$transaction(async (tx) => {
+    const createdNodes = [];
+    for (const nodeData of bracketData.bracketNodes) {
+      const { nextNodeIndex, byeTeamId, ...nodeCreateData } = nodeData;
+      const node = await tx.bracketNode.create({ data: nodeCreateData });
+      createdNodes.push(node);
+    }
+
+    for (const matchData of bracketData.matchesToCreate) {
+      const { node: nodeRef, ...matchCreateData } = matchData;
+      const nodeIndex = bracketData.bracketNodes.findIndex(
+        (n) => n.roundNumber === nodeRef.roundNumber &&
+               n.position === nodeRef.position &&
+               n.bracketType === nodeRef.bracketType
+      );
+      const createdNode = createdNodes[nodeIndex];
+      const match = await tx.match.create({
+        data: { ...matchCreateData, tournamentId, matchStatus: 'UPCOMING' },
+      });
+      await tx.bracketNode.update({
+        where: { id: createdNode.id },
+        data: { matchId: match.id },
+      });
+    }
+
+    return { matchCount: bracketData.matchesToCreate.length };
+  }, { timeout: 30000 });
+
+  return { success: true, message: `Generated ${result.matchCount} round robin matches`, data: result };
+}
+
 module.exports = {
   generateBracket,
   advanceWinner,
@@ -1809,4 +2099,5 @@ module.exports = {
   getGroupStandings,
   generateKnockoutFromGroups,
   completeRoundRobinToKnockout,
+  generateCustomRoundRobin,
 };

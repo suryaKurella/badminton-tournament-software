@@ -275,6 +275,7 @@ const createTournament = async (req, res) => {
       advancingPerGroup,
       clubId,
       scoringPermission,
+      partnerMode,
     } = req.body;
 
     const finalStatus = status || 'DRAFT';
@@ -307,6 +308,11 @@ const createTournament = async (req, res) => {
     // Add scoring permission if provided
     if (scoringPermission) {
       tournamentData.scoringPermission = scoringPermission;
+    }
+
+    // Add partner mode if provided (for ROUND_ROBIN doubles/mixed)
+    if (partnerMode) {
+      tournamentData.partnerMode = partnerMode;
     }
 
     const tournament = await prisma.tournament.create({
@@ -1292,6 +1298,16 @@ const getBracket = async (req, res) => {
       });
     }
 
+    // Filter hidden rounds for non-organizer users
+    let bracketNodes = tournament.bracketNodes;
+    const isOrganizer = req.user && ['ROOT', 'ADMIN', 'ORGANIZER'].includes(req.user.role);
+    if (!isOrganizer) {
+      const hiddenRounds = Array.isArray(tournament.hiddenRounds) ? tournament.hiddenRounds : [];
+      if (hiddenRounds.length > 0) {
+        bracketNodes = bracketNodes.filter(node => !node.match || !hiddenRounds.includes(node.match.round));
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -1302,7 +1318,7 @@ const getBracket = async (req, res) => {
           bracketGenerated: tournament.bracketGenerated,
           bracketGeneratedAt: tournament.bracketGeneratedAt,
         },
-        bracketNodes: tournament.bracketNodes,
+        bracketNodes,
       },
     });
   } catch (error) {
@@ -1310,6 +1326,69 @@ const getBracket = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting bracket',
+    });
+  }
+};
+
+// @desc    Generate draws before starting the tournament
+// @route   POST /api/tournaments/:id/generate-draws
+// @access  Private (ADMIN, ORGANIZER - owner only)
+const generateDraws = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    if (tournament.createdById !== req.user.id && req.user.role !== 'ADMIN' && req.user.role !== 'ROOT') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (tournament.status !== 'OPEN' && tournament.status !== 'DRAFT') {
+      return res.status(400).json({ success: false, message: 'Can only generate draws before the tournament starts' });
+    }
+
+    // If draws already exist, clear them first then regenerate
+    if (tournament.bracketGenerated) {
+      await prisma.$transaction([
+        prisma.matchEvent.deleteMany({ where: { match: { tournamentId: id } } }),
+        prisma.match.deleteMany({ where: { tournamentId: id } }),
+        prisma.bracketNode.deleteMany({ where: { tournamentId: id } }),
+        prisma.team.deleteMany({ where: { tournamentId: id } }),
+        prisma.tournament.update({
+          where: { id },
+          data: { bracketGenerated: false, bracketGeneratedAt: null, groupStageComplete: false },
+        }),
+      ]);
+    }
+
+    const result = await bracketService.generateBracket(
+      id,
+      tournament.format,
+      tournament.seedingMethod || 'RANDOM'
+    );
+
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Draws generated successfully',
+      data: result,
+    });
+  } catch (error) {
+    console.error('Generate draws error:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to generate draws',
     });
   }
 };
@@ -2355,6 +2434,7 @@ const roundRobinToKnockout = async (req, res) => {
       where: { id },
       include: {
         teams: true,
+        registrations: true,
       },
     });
 
@@ -2376,10 +2456,10 @@ const roundRobinToKnockout = async (req, res) => {
       });
     }
 
-    if (tournament.format !== 'ROUND_ROBIN') {
+    if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'CUSTOM') {
       return res.status(400).json({
         success: false,
-        message: 'This tournament is not Round Robin format',
+        message: 'This endpoint is only for Round Robin or Custom format tournaments',
       });
     }
 
@@ -2390,13 +2470,25 @@ const roundRobinToKnockout = async (req, res) => {
       });
     }
 
-    // Check if there are enough players for the selected playoff size
-    const teamCount = tournament.teams.length;
-    if (teamCount < advancePlayers) {
-      return res.status(400).json({
-        success: false,
-        message: `Not enough players for playoffs. You have ${teamCount} players but selected Top ${advancePlayers}. Please choose a smaller playoff size or use "Declare Winners" instead.`,
-      });
+    // Check if there are enough players/teams for the selected playoff size
+    if (tournament.partnerMode === 'ROTATING') {
+      // For rotating partners, advancePlayers = number of playoff teams, need 2 players per team
+      const playerCount = tournament.registrations?.length || tournament.teams.filter(t => t.player1Id === t.player2Id).length;
+      const neededPlayers = advancePlayers * 2;
+      if (playerCount < neededPlayers) {
+        return res.status(400).json({
+          success: false,
+          message: `Need at least ${neededPlayers} players for Top ${advancePlayers} playoffs. You have ${playerCount} players.`,
+        });
+      }
+    } else {
+      const teamCount = tournament.teams.length;
+      if (teamCount < advancePlayers) {
+        return res.status(400).json({
+          success: false,
+          message: `Not enough teams for playoffs. You have ${teamCount} teams but selected Top ${advancePlayers}. Please choose a smaller playoff size or use "Declare Winners" instead.`,
+        });
+      }
     }
 
     const result = await bracketService.completeRoundRobinToKnockout(id, advancePlayers);
@@ -2462,10 +2554,10 @@ const declareWinners = async (req, res) => {
       });
     }
 
-    if (tournament.format !== 'ROUND_ROBIN') {
+    if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'CUSTOM') {
       return res.status(400).json({
         success: false,
-        message: 'This endpoint is only for Round Robin tournaments',
+        message: 'This endpoint is only for Round Robin or Custom format tournaments',
       });
     }
 
@@ -2650,10 +2742,10 @@ const revertPlayoffs = async (req, res) => {
       });
     }
 
-    if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'GROUP_KNOCKOUT') {
+    if (tournament.format !== 'ROUND_ROBIN' && tournament.format !== 'GROUP_KNOCKOUT' && tournament.format !== 'CUSTOM') {
       return res.status(400).json({
         success: false,
-        message: 'This feature is only available for Round Robin and Group Knockout formats',
+        message: 'This feature is only available for Round Robin, Group Knockout, and Custom formats',
       });
     }
 
@@ -3349,6 +3441,386 @@ const adminRegisterPlayer = async (req, res) => {
   }
 };
 
+// @desc    Generate Round Robin matches for a CUSTOM format tournament
+// @route   POST /api/tournaments/:id/generate-round-robin
+// @access  Private (Organizer/Admin)
+const generateCustomRoundRobinMatches = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        matches: { select: { id: true } },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found',
+      });
+    }
+
+    // Check authorization
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this tournament',
+      });
+    }
+
+    if (tournament.format !== 'CUSTOM') {
+      return res.status(400).json({
+        success: false,
+        message: 'This feature is only available for Custom format tournaments',
+      });
+    }
+
+    if (tournament.status !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tournament must be active to generate matches',
+      });
+    }
+
+    if (tournament.matches.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot generate round robin matches when matches already exist. Reset tournament first.',
+      });
+    }
+
+    const result = await bracketService.generateCustomRoundRobin(id);
+
+    // Emit socket event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament:${id}`).emit('tournament:bracketGenerated', {
+        tournamentId: id,
+        matchCount: result.matchCount,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Generated ${result.matchCount} round robin matches`,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Generate custom round robin error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error generating round robin matches',
+    });
+  }
+};
+
+// @desc    Create a match in a CUSTOM tournament with player IDs (creates teams on-the-fly)
+// @route   POST /api/tournaments/:id/create-custom-match
+// @access  Private (Organizer/Admin)
+const createCustomMatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { matchType, side1Players, side2Players, round } = req.body;
+
+    if (!matchType || !side1Players || !side2Players) {
+      return res.status(400).json({
+        success: false,
+        message: 'matchType, side1Players, and side2Players are required',
+      });
+    }
+
+    if (matchType !== 'singles' && matchType !== 'doubles') {
+      return res.status(400).json({
+        success: false,
+        message: 'matchType must be "singles" or "doubles"',
+      });
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        format: true,
+        status: true,
+        createdById: true,
+        teams: true,
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN';
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (tournament.format !== 'CUSTOM') {
+      return res.status(400).json({ success: false, message: 'This endpoint is only for Custom format tournaments' });
+    }
+
+    if (tournament.status !== 'ACTIVE') {
+      return res.status(400).json({ success: false, message: 'Tournament must be active' });
+    }
+
+    // Validate player counts
+    if (matchType === 'singles') {
+      if (side1Players.length !== 1 || side2Players.length !== 1) {
+        return res.status(400).json({ success: false, message: 'Singles match requires exactly 1 player per side' });
+      }
+    } else {
+      if (side1Players.length !== 2 || side2Players.length !== 2) {
+        return res.status(400).json({ success: false, message: 'Doubles match requires exactly 2 players per side' });
+      }
+    }
+
+    // Check all player IDs are unique
+    const allPlayerIds = [...side1Players, ...side2Players];
+    if (new Set(allPlayerIds).size !== allPlayerIds.length) {
+      return res.status(400).json({ success: false, message: 'All players must be different' });
+    }
+
+    // Find or create teams for each side
+    const findOrCreateTeam = async (playerIds) => {
+      if (playerIds.length === 1) {
+        // Singles: find existing solo team or create one
+        let team = tournament.teams.find(t => t.player1Id === playerIds[0] && !t.player2Id);
+        if (!team) {
+          // Reuse existing RR solo team (player2Id === player1Id pattern)
+          team = tournament.teams.find(t => t.player1Id === playerIds[0]);
+        }
+        if (!team) {
+          team = await prisma.team.create({
+            data: {
+              tournamentId: id,
+              player1Id: playerIds[0],
+              player2Id: playerIds[0],
+            },
+          });
+        }
+        return team.id;
+      } else {
+        // Doubles: find existing pair team or create one
+        const [p1, p2] = playerIds;
+        let team = tournament.teams.find(
+          t => (t.player1Id === p1 && t.player2Id === p2) ||
+               (t.player1Id === p2 && t.player2Id === p1)
+        );
+        if (!team) {
+          team = await prisma.team.create({
+            data: {
+              tournamentId: id,
+              player1Id: p1,
+              player2Id: p2,
+            },
+          });
+        }
+        return team.id;
+      }
+    };
+
+    const team1Id = await findOrCreateTeam(side1Players);
+    const team2Id = await findOrCreateTeam(side2Players);
+
+    const match = await prisma.match.create({
+      data: {
+        tournamentId: id,
+        team1Id,
+        team2Id,
+        round: round || (matchType === 'singles' ? 'Singles Match' : 'Doubles Match'),
+        matchStatus: 'UPCOMING',
+      },
+      include: {
+        team1: { include: { player1: { select: { id: true, username: true, fullName: true } }, player2: { select: { id: true, username: true, fullName: true } } } },
+        team2: { include: { player1: { select: { id: true, username: true, fullName: true } }, player2: { select: { id: true, username: true, fullName: true } } } },
+      },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament:${id}`).emit('match:created', match);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Match created successfully',
+      data: match,
+    });
+  } catch (error) {
+    console.error('Create custom match error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error creating match',
+    });
+  }
+};
+
+// @desc    Update playoff team composition (swap players)
+// @route   PUT /api/tournaments/:id/playoff-teams/:teamId
+// @access  Private (Organizer/Admin)
+const updatePlayoffTeam = async (req, res) => {
+  try {
+    const { id, teamId } = req.params;
+    const { player1Id, player2Id } = req.body;
+
+    if (!player1Id || !player2Id) {
+      return res.status(400).json({ success: false, message: 'Both player1Id and player2Id are required' });
+    }
+
+    if (player1Id === player2Id) {
+      return res.status(400).json({ success: false, message: 'Players must be different' });
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        registrations: {
+          where: { registrationStatus: 'APPROVED' },
+          include: { user: { select: { id: true, fullName: true, username: true } } },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Authorization check
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN' || req.user.role === 'ORGANIZER';
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Verify team exists and belongs to this tournament
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team || team.tournamentId !== id) {
+      return res.status(404).json({ success: false, message: 'Team not found in this tournament' });
+    }
+
+    // Verify the team is used in an UPCOMING match (can't edit teams in started/completed matches)
+    const matchWithTeam = await prisma.match.findFirst({
+      where: {
+        tournamentId: id,
+        OR: [{ team1Id: teamId }, { team2Id: teamId }],
+      },
+    });
+
+    if (matchWithTeam && matchWithTeam.matchStatus !== 'UPCOMING') {
+      return res.status(400).json({ success: false, message: 'Cannot edit team — match has already started or completed' });
+    }
+
+    // Verify both players are registered in the tournament
+    const registeredUserIds = new Set(tournament.registrations.map(r => r.userId));
+    if (!registeredUserIds.has(player1Id)) {
+      return res.status(400).json({ success: false, message: 'Player 1 is not registered in this tournament' });
+    }
+    if (!registeredUserIds.has(player2Id)) {
+      return res.status(400).json({ success: false, message: 'Player 2 is not registered in this tournament' });
+    }
+
+    // Get player names for team name
+    const p1Reg = tournament.registrations.find(r => r.userId === player1Id);
+    const p2Reg = tournament.registrations.find(r => r.userId === player2Id);
+    const p1Name = p1Reg?.user?.fullName || p1Reg?.user?.username || '';
+    const p2Name = p2Reg?.user?.fullName || p2Reg?.user?.username || '';
+
+    // Update the team
+    const updatedTeam = await prisma.team.update({
+      where: { id: teamId },
+      data: {
+        player1Id,
+        player2Id,
+        teamName: `${p1Name} & ${p2Name}`,
+      },
+      include: {
+        player1: { select: { id: true, username: true, fullName: true } },
+        player2: { select: { id: true, username: true, fullName: true } },
+      },
+    });
+
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Team updated successfully',
+      data: updatedTeam,
+    });
+  } catch (error) {
+    console.error('Update playoff team error:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Error updating team' });
+  }
+};
+
+// @desc    Toggle round visibility (hide/show rounds from players)
+// @route   PUT /api/tournaments/:id/toggle-round-visibility
+// @access  Private (Organizer/Admin)
+const toggleRoundVisibility = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { round, hidden } = req.body;
+
+    if (!round || typeof round !== 'string') {
+      return res.status(400).json({ success: false, message: 'Round name is required' });
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: { hiddenRounds: true, createdById: true },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const isOrganizer = tournament.createdById === req.user.id;
+    const isAdmin = req.user.role === 'ROOT' || req.user.role === 'ADMIN' || req.user.role === 'ORGANIZER';
+    if (!isOrganizer && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    let hiddenRounds = Array.isArray(tournament.hiddenRounds) ? [...tournament.hiddenRounds] : [];
+
+    if (hidden) {
+      if (!hiddenRounds.includes(round)) {
+        hiddenRounds.push(round);
+      }
+    } else {
+      hiddenRounds = hiddenRounds.filter(r => r !== round);
+    }
+
+    await prisma.tournament.update({
+      where: { id },
+      data: { hiddenRounds },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: hidden ? `Round "${round}" hidden` : `Round "${round}" visible`,
+      data: { hiddenRounds },
+    });
+  } catch (error) {
+    console.error('Toggle round visibility error:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Error toggling round visibility' });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -3364,6 +3836,7 @@ module.exports = {
   togglePauseTournament,
   toggleRegistration,
   getBracket,
+  generateDraws,
   regenerateBracket,
   replaceNoShowTeam,
   resetTournament,
@@ -3382,4 +3855,8 @@ module.exports = {
   adminRegisterTeam,
   adminRegisterPlayer,
   revertPlayoffs,
+  generateCustomRoundRobinMatches,
+  createCustomMatch,
+  updatePlayoffTeam,
+  toggleRoundVisibility,
 };

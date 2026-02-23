@@ -29,7 +29,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link
             to="/tournaments"
-            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 min-w-max"
+            className="flex items-center gap-2 text-lg sm:text-xl font-bold text-teal-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 min-w-max"
             onClick={closeMobileMenu}
           >
             <span className="text-2xl">🏸</span>
@@ -41,14 +41,14 @@ const Navbar = () => {
           <div className="hidden md:flex gap-4 lg:gap-6 items-center">
             <Link
               to="/tournaments"
-              className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+              className="text-primary hover:bg-teal-600 hover:text-white font-medium transition-all px-3 py-2 rounded-lg dark:hover:bg-brand-green"
             >
               Tournaments
             </Link>
             {leaderboardEnabled && (
               <Link
                 to="/leaderboard"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+                className="text-primary hover:bg-teal-600 hover:text-white font-medium transition-all px-3 py-2 rounded-lg dark:hover:bg-brand-green"
               >
                 Leaderboard
               </Link>
@@ -56,7 +56,7 @@ const Navbar = () => {
             {clubsEnabled && (
               <Link
                 to="/clubs"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+                className="text-primary hover:bg-teal-600 hover:text-white font-medium transition-all px-3 py-2 rounded-lg dark:hover:bg-brand-green"
               >
                 Clubs
               </Link>
@@ -64,7 +64,7 @@ const Navbar = () => {
             {isRoot && (
               <Link
                 to="/admin/feature-flags"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-3 py-2 rounded-lg"
+                className="text-primary hover:bg-teal-600 hover:text-white font-medium transition-all px-3 py-2 rounded-lg dark:hover:bg-brand-green"
               >
                 Flags
               </Link>
@@ -99,7 +99,7 @@ const Navbar = () => {
               <div className="flex gap-3 items-center">
                 <Link
                   to="/login"
-                  className="text-primary hover:bg-brand-green hover:text-white font-medium transition-all px-4 py-2 rounded-lg"
+                  className="text-primary hover:bg-teal-600 hover:text-white font-medium transition-all px-4 py-2 rounded-lg dark:hover:bg-brand-green"
                 >
                   Login
                 </Link>
@@ -154,7 +154,7 @@ const Navbar = () => {
             <div className="flex flex-col gap-2">
               <Link
                 to="/tournaments"
-                className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                className="text-primary hover:bg-teal-600 hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all dark:hover:bg-brand-green"
                 onClick={closeMobileMenu}
               >
                 Tournaments
@@ -162,7 +162,7 @@ const Navbar = () => {
               {leaderboardEnabled && (
                 <Link
                   to="/leaderboard"
-                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  className="text-primary hover:bg-teal-600 hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all dark:hover:bg-brand-green"
                   onClick={closeMobileMenu}
                 >
                   Leaderboard
@@ -171,7 +171,7 @@ const Navbar = () => {
               {clubsEnabled && (
                 <Link
                   to="/clubs"
-                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  className="text-primary hover:bg-teal-600 hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all dark:hover:bg-brand-green"
                   onClick={closeMobileMenu}
                 >
                   Clubs
@@ -180,7 +180,7 @@ const Navbar = () => {
               {isRoot && (
                 <Link
                   to="/admin/feature-flags"
-                  className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                  className="text-primary hover:bg-teal-600 hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all dark:hover:bg-brand-green"
                   onClick={closeMobileMenu}
                 >
                   Flags
@@ -204,7 +204,7 @@ const Navbar = () => {
                 <>
                   <Link
                     to="/login"
-                    className="text-primary hover:bg-brand-green hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all"
+                    className="text-primary hover:bg-teal-600 hover:text-white font-medium py-2.5 px-3 rounded-lg transition-all dark:hover:bg-brand-green"
                     onClick={closeMobileMenu}
                   >
                     Login

@@ -52,8 +52,8 @@ const Login = () => {
   return (
     <div className="w-full flex items-center justify-center min-h-[calc(100vh-250px)] px-4">
       <div className="glass-card p-6 sm:p-8 lg:p-12 w-full max-w-2xl">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-900 dark:text-white">Login</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-6 sm:mb-8 text-sm">Welcome back to Badminton Tournament Manager</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-light-text-primary dark:text-white">Login</h1>
+        <p className="text-light-text-muted dark:text-gray-400 mb-6 sm:mb-8 text-sm">Welcome back to Badminton Tournament Manager</p>
 
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-4 py-3 rounded-md mb-5 border-l-4 border-red-600 dark:border-red-400 text-sm">
@@ -98,10 +98,10 @@ const Login = () => {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-slate-600"></div>
+              <div className="w-full border-t border-light-border dark:border-slate-600"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400">Or continue with</span>
+              <span className="px-2 bg-transparent text-light-text-muted dark:text-gray-400">Or continue with</span>
             </div>
           </div>
 
@@ -136,9 +136,9 @@ const Login = () => {
           </Button>
         </form>
 
-        <p className="text-center mt-7 text-gray-500 dark:text-gray-400 text-sm">
+        <p className="text-center mt-7 text-light-text-muted dark:text-gray-400 text-sm">
           Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+          <Link to="/register" className="text-teal-600 dark:text-blue-400 font-semibold hover:underline">
             Register here
           </Link>
         </p>

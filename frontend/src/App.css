@@ -21,7 +21,7 @@
 
   /* Focus styles for accessibility */
   *:focus-visible {
-    @apply outline-none ring-2 ring-brand-blue ring-offset-2;
+    @apply outline-none ring-2 ring-teal-500 dark:ring-brand-blue ring-offset-2;
   }
 
   .dark *:focus-visible {
@@ -32,7 +32,7 @@
 @layer components {
   /* Card Components */
   .card {
-    @apply bg-light-card border border-light-border shadow-card rounded-lg;
+    @apply bg-light-card border border-light-border shadow-glass rounded-lg;
     @apply dark:bg-dark-card dark:border-dark-border dark:shadow-dark-card;
     @apply transition-all duration-200;
   }
@@ -70,7 +70,7 @@
     @apply w-full px-4 py-2.5 rounded-lg border border-light-border;
     @apply bg-light-card text-light-text-primary;
     @apply dark:bg-dark-card dark:text-dark-text-primary dark:border-dark-border;
-    @apply focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20;
+    @apply focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:focus:border-brand-blue dark:focus:ring-brand-blue/20;
     @apply transition-all duration-150;
     @apply placeholder:text-light-text-muted dark:placeholder:text-dark-text-muted;
   }
@@ -153,9 +153,9 @@
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-2xl;
     background: rgba(255, 255, 255, 0.72);
-    border: 0.5px solid rgba(200, 200, 200, 0.3);
+    border: 0.5px solid rgba(16, 185, 129, 0.12);
     @apply transition-all duration-300;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     backface-visibility: hidden;
@@ -170,8 +170,8 @@
 
   .glass-card:hover {
     background: rgba(255, 255, 255, 0.85);
-    border: 0.5px solid rgba(180, 180, 180, 0.4);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.12);
+    border: 0.5px solid rgba(16, 185, 129, 0.2);
+    box-shadow: 0 8px 30px rgba(16, 185, 129, 0.1), 0 4px 12px rgba(0, 0, 0, 0.06);
     @apply scale-[1.01];
   }
 
@@ -186,9 +186,9 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     background: rgba(255, 255, 255, 0.7);
-    border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    border-bottom: 0.5px solid rgba(16, 185, 129, 0.1);
     @apply transition-all duration-300;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.04);
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     backface-visibility: hidden;
@@ -206,10 +206,10 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-3xl;
-    background: rgba(255, 255, 255, 0.78);
-    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.82);
+    border: 0.5px solid rgba(16, 185, 129, 0.12);
     @apply transition-all duration-300;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 20px 60px rgba(16, 185, 129, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     backface-visibility: hidden;
@@ -228,9 +228,9 @@
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-xl;
     background: rgba(255, 255, 255, 0.65);
-    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    border: 0.5px solid rgba(16, 185, 129, 0.1);
     @apply transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.06);
   }
 
   .dark .glass-button {
@@ -240,10 +240,10 @@
   }
 
   .glass-button:hover {
-    background: rgba(255, 255, 255, 0.75);
-    border: 0.5px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.8);
+    border: 0.5px solid rgba(16, 185, 129, 0.18);
     @apply scale-105;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.1);
   }
 
   .dark .glass-button:hover {
@@ -262,9 +262,9 @@
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-xl;
     background: rgba(255, 255, 255, 0.68);
-    border: 0.5px solid rgba(255, 255, 255, 0.18);
+    border: 0.5px solid rgba(16, 185, 129, 0.1);
     @apply transition-all duration-200;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px rgba(16, 185, 129, 0.04);
   }
 
   .dark .glass-surface {
@@ -277,10 +277,10 @@
   .glass-intense {
     backdrop-filter: blur(30px);
     -webkit-backdrop-filter: blur(30px);
-    background: rgba(255, 255, 255, 0.75);
-    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.78);
+    border: 0.5px solid rgba(16, 185, 129, 0.12);
     @apply transition-all duration-300;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.06);
   }
 
   .dark .glass-intense {
@@ -294,10 +294,10 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-xl;
-    background: rgba(255, 255, 255, 0.65);
-    border: 0.5px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.7);
+    border: 0.5px solid rgba(16, 185, 129, 0.12);
     @apply transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.04);
   }
 
   .dark .glass-input {
@@ -307,10 +307,10 @@
   }
 
   .glass-input:focus {
-    background: rgba(255, 255, 255, 0.75);
-    border: 0.5px solid rgba(59, 130, 246, 0.3);
-    @apply ring-2 ring-brand-blue/20;
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+    background: rgba(255, 255, 255, 0.8);
+    border: 0.5px solid rgba(20, 184, 166, 0.3);
+    @apply ring-2 ring-teal-500/20;
+    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.1);
   }
 
   .dark .glass-input:focus {
@@ -325,9 +325,9 @@
     -webkit-backdrop-filter: blur(20px);
     @apply rounded-full;
     background: rgba(255, 255, 255, 0.7);
-    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    border: 0.5px solid rgba(16, 185, 129, 0.1);
     @apply transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.04);
   }
 
   .dark .glass-badge {

@@ -112,6 +112,7 @@ export const tournamentAPI = {
   unregisterParticipant: (tournamentId, registrationId) => api.delete(`/tournaments/${tournamentId}/registrations/${registrationId}`),
   togglePause: (id) => api.put(`/tournaments/${id}/toggle-pause`),
   toggleRegistration: (id) => api.put(`/tournaments/${id}/toggle-registration`),
+  generateDraws: (id) => api.post(`/tournaments/${id}/generate-draws`),
   regenerateBracket: (id) => api.post(`/tournaments/${id}/regenerate-bracket`),
   replaceTeam: (tournamentId, matchId, data) => api.put(`/tournaments/${tournamentId}/matches/${matchId}/replace-team`, data),
   reset: (id) => api.post(`/tournaments/${id}/reset`),
@@ -128,10 +129,14 @@ export const tournamentAPI = {
   declareWinners: (id, winners) => api.post(`/tournaments/${id}/declare-winners`, { winners }),
   reopenTournament: (id) => api.post(`/tournaments/${id}/reopen`),
   revertPlayoffs: (id) => api.post(`/tournaments/${id}/revert-playoffs`),
+  generateRoundRobin: (id) => api.post(`/tournaments/${id}/generate-round-robin`),
+  createCustomMatch: (id, data) => api.post(`/tournaments/${id}/create-custom-match`, data),
   getLeaderboard: (id) => api.get(`/statistics/tournament/${id}/leaderboard`),
   // Doubles partner selection
   getPotentialPartners: (id, search) => api.get(`/tournaments/${id}/potential-partners`, { params: { search } }),
   assignPartner: (tournamentId, registrationId, partnerRegistrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/assign-partner`, { partnerRegistrationId }),
+  updatePlayoffTeam: (tournamentId, teamId, data) => api.put(`/tournaments/${tournamentId}/playoff-teams/${teamId}`, data),
+  toggleRoundVisibility: (id, round, hidden) => api.put(`/tournaments/${id}/toggle-round-visibility`, { round, hidden }),
 };
 
 // Match APIs

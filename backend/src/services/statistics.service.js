@@ -502,14 +502,16 @@ async function getTournamentLeaderboard(tournamentId) {
     // Get tournament to check type
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
-      select: { tournamentType: true },
+      select: { tournamentType: true, partnerMode: true },
     });
 
     if (!tournament) {
       throw new Error('Tournament not found');
     }
 
-    const isTeamTournament = tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED';
+    // Rotating partner tournaments use individual leaderboard even for doubles/mixed
+    const isTeamTournament = (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED')
+      && tournament.partnerMode !== 'ROTATING';
 
     // Get all completed matches with bracket info
     const matches = await prisma.match.findMany({

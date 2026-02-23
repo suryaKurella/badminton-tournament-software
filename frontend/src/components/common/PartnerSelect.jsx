@@ -70,7 +70,7 @@ const PartnerSelect = ({ tournamentId, value, onChange, disabled = false }) => {
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      <label className="block mb-2 font-semibold text-gray-900 dark:text-white text-sm">
+      <label className="block mb-2 font-semibold text-light-text-primary dark:text-white text-sm">
         Select Partner <span className="text-gray-500 font-normal">(Optional)</span>
       </label>
 
@@ -82,7 +82,7 @@ const PartnerSelect = ({ tournamentId, value, onChange, disabled = false }) => {
               <User size={16} className="text-brand-green" />
             </div>
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">
+              <p className="font-medium text-light-text-primary dark:text-white">
                 {getDisplayName(selectedPartner)}
               </p>
               {selectedPartner.isRegistered && (
@@ -114,20 +114,20 @@ const PartnerSelect = ({ tournamentId, value, onChange, disabled = false }) => {
             onFocus={() => setIsOpen(true)}
             placeholder="Search for a partner by name..."
             disabled={disabled}
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-600 dark:focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full pl-10 pr-4 py-3 border-2 border-light-border dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-700 text-light-text-primary dark:text-white focus:outline-none focus:border-teal-500 dark:focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       )}
 
       {/* Dropdown */}
       {isOpen && !selectedPartner && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-light-border dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {loading ? (
-            <div className="px-4 py-3 text-center text-gray-500 dark:text-gray-400">
+            <div className="px-4 py-3 text-center text-light-text-muted dark:text-gray-400">
               Searching...
             </div>
           ) : partners.length === 0 ? (
-            <div className="px-4 py-3 text-center text-gray-500 dark:text-gray-400">
+            <div className="px-4 py-3 text-center text-light-text-muted dark:text-gray-400">
               {search ? 'No users found' : 'Type to search for partners'}
             </div>
           ) : (
@@ -136,21 +136,21 @@ const PartnerSelect = ({ tournamentId, value, onChange, disabled = false }) => {
                 key={partner.id}
                 type="button"
                 onClick={() => handleSelect(partner)}
-                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-light-surface dark:hover:bg-slate-700 transition-colors text-left"
               >
-                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-light-border dark:bg-slate-600 flex items-center justify-center overflow-hidden">
                   {partner.avatarUrl ? (
                     <img src={partner.avatarUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <User size={16} className="text-gray-500 dark:text-gray-400" />
+                    <User size={16} className="text-light-text-muted dark:text-gray-400" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900 dark:text-white">
+                  <p className="font-medium text-light-text-primary dark:text-white">
                     {getDisplayName(partner)}
                   </p>
                   {partner.username && partner.fullName && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">@{partner.username}</p>
+                    <p className="text-xs text-light-text-muted dark:text-gray-400">@{partner.username}</p>
                   )}
                 </div>
                 {partner.isRegistered && (
@@ -165,7 +165,7 @@ const PartnerSelect = ({ tournamentId, value, onChange, disabled = false }) => {
         </div>
       )}
 
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-1 text-xs text-light-text-muted dark:text-gray-400">
         You can register without a partner and be paired randomly, or select a registered player to team up.
       </p>
     </div>

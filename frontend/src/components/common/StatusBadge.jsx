@@ -1,6 +1,6 @@
 const statusStyles = {
   // Tournament statuses
-  DRAFT: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+  DRAFT: 'bg-light-surface dark:bg-gray-700 text-light-text-muted dark:text-gray-300',
   OPEN: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
   ACTIVE: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
   COMPLETED: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',

@@ -84,7 +84,7 @@ const ManualGroupAssignment = ({ tournament, onAssignmentChange }) => {
 
   if (!assignments) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-8 text-light-text-muted dark:text-gray-400">
         Unable to load group assignments.
       </div>
     );
@@ -98,11 +98,11 @@ const ManualGroupAssignment = ({ tournament, onAssignmentChange }) => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-xl font-bold text-light-text-primary dark:text-white flex items-center gap-2">
             <Users className="text-brand-green" size={24} />
             Group Assignment
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-light-text-muted dark:text-gray-400 mt-1">
             Assign players to groups before starting the tournament
           </p>
         </div>
@@ -146,7 +146,7 @@ const ManualGroupAssignment = ({ tournament, onAssignmentChange }) => {
       {/* Unassigned Players */}
       {unassigned.length > 0 && !bracketGenerated && (
         <div className="glass-card p-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+          <h3 className="text-lg font-semibold text-light-text-primary dark:text-white mb-3">
             Unassigned Players ({unassigned.length})
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -171,10 +171,10 @@ const ManualGroupAssignment = ({ tournament, onAssignmentChange }) => {
           return (
             <div key={groupName} className="glass-card overflow-hidden">
               <div className="bg-gradient-to-r from-brand-green/20 to-transparent p-3 border-b border-border">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-bold text-light-text-primary dark:text-white">
                   Group {groupName}
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-light-text-muted dark:text-gray-400">
                   {groupPlayers.length} players
                 </p>
               </div>
@@ -205,7 +205,7 @@ const ManualGroupAssignment = ({ tournament, onAssignmentChange }) => {
       </div>
 
       {/* Info */}
-      <div className="text-xs text-gray-500 dark:text-gray-400">
+      <div className="text-xs text-light-text-muted dark:text-gray-400">
         <p>
           Players are assigned to groups using snake seeding by default (1→A, 2→B, 3→C, 4→D, 5→D, 6→C...).
           You can manually reassign players by clicking on their name and selecting a group.

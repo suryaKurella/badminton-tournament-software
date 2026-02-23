@@ -102,8 +102,8 @@ const TournamentList = () => {
 
   return (
     <div className="w-full">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 pb-4 border-b-2 border-gray-200 dark:border-slate-700">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">Tournaments</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 pb-4 border-b-2 border-light-border dark:border-slate-700">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-light-text-primary dark:text-white">Tournaments</h1>
         {isOrganizer && (
           <Link to="/tournaments/create">
             <Button variant="outline" size="md">
@@ -117,7 +117,7 @@ const TournamentList = () => {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="glass-surface w-full sm:w-auto px-4 sm:px-5 py-2.5 text-sm text-gray-900 dark:text-white cursor-pointer font-medium focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+          className="glass-surface w-full sm:w-auto px-4 sm:px-5 py-2.5 text-sm text-light-text-primary dark:text-white cursor-pointer font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:focus:ring-brand-blue/20"
         >
           <option value="">All Tournaments</option>
           {isOrganizer && <option value="DRAFT">Draft</option>}
@@ -136,7 +136,7 @@ const TournamentList = () => {
             className={`p-2 rounded-lg transition-all ${
               viewMode === 'card'
                 ? 'bg-brand-blue text-white'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                : 'text-light-text-muted dark:text-gray-400 hover:text-light-text-primary dark:hover:text-gray-200'
             }`}
             title="Card view"
           >
@@ -150,7 +150,7 @@ const TournamentList = () => {
             className={`p-2 rounded-lg transition-all ${
               viewMode === 'list'
                 ? 'bg-brand-blue text-white'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                : 'text-light-text-muted dark:text-gray-400 hover:text-light-text-primary dark:hover:text-gray-200'
             }`}
             title="List view"
           >
@@ -172,7 +172,7 @@ const TournamentList = () => {
             className="glass-card p-5 sm:p-6 lg:p-7 block hover:-translate-y-1 relative"
           >
             <div className="flex justify-between items-start mb-3 sm:mb-4 gap-3 sm:gap-4">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight flex-1">
+              <h3 className="text-lg sm:text-xl font-bold text-light-text-primary dark:text-white leading-tight flex-1">
                 {tournament.name}
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -186,10 +186,10 @@ const TournamentList = () => {
             </div>
 
             <div className="flex gap-3 mb-4 flex-wrap">
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold bg-gray-50 dark:bg-slate-700 px-3 py-1.5 rounded-md">
+              <p className="text-xs text-light-text-muted dark:text-gray-400 font-semibold bg-light-surface dark:bg-slate-700 px-3 py-1.5 rounded-md">
                 {tournament.tournamentType}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold bg-gray-50 dark:bg-slate-700 px-3 py-1.5 rounded-md">
+              <p className="text-xs text-light-text-muted dark:text-gray-400 font-semibold bg-light-surface dark:bg-slate-700 px-3 py-1.5 rounded-md">
                 {tournament.format.replace('_', ' ')}
               </p>
               {tournament.club && (
@@ -201,15 +201,15 @@ const TournamentList = () => {
             </div>
 
             <div className="flex flex-col gap-2.5 mb-4">
-              <div className="flex items-center gap-2.5 text-sm text-gray-900 dark:text-white">
+              <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">📍</span>
                 <span>{tournament.location}</span>
               </div>
-              <div className="flex items-center gap-2.5 text-sm text-gray-900 dark:text-white">
+              <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">📅</span>
                 <span>{formatDate(tournament.startDate)}</span>
               </div>
-              <div className="flex items-center gap-2.5 text-sm text-gray-900 dark:text-white">
+              <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">👥</span>
                 <span>
                   {tournament.registrations?.length || 0}/{tournament.maxParticipants}
@@ -233,7 +233,7 @@ const TournamentList = () => {
             )}
 
             {tournament.description && (
-              <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed line-clamp-2 mt-2">
+              <p className="text-light-text-muted dark:text-gray-400 text-sm leading-relaxed line-clamp-2 mt-2">
                 {tournament.description}
               </p>
             )}
@@ -248,7 +248,7 @@ const TournamentList = () => {
                     e.stopPropagation();
                     navigate(`/tournaments/${tournament.id}/edit`);
                   }}
-                  className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                  className="p-2 rounded-full bg-teal-100 dark:bg-blue-900/30 text-teal-600 dark:text-blue-400 hover:bg-teal-200 dark:hover:bg-blue-900/50 transition-colors"
                   title="Edit tournament"
                 >
                   <Pencil size={16} />
@@ -279,7 +279,7 @@ const TournamentList = () => {
               {/* Name and Status */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white truncate">
+                  <h3 className="text-base font-bold text-light-text-primary dark:text-white truncate">
                     {tournament.name}
                   </h3>
                   <StatusBadge status={tournament.status} />
@@ -289,11 +289,11 @@ const TournamentList = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-light-text-muted dark:text-gray-400">
+                  <span className="font-medium bg-light-surface dark:bg-slate-700 px-2 py-0.5 rounded">
                     {tournament.tournamentType}
                   </span>
-                  <span className="font-medium bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                  <span className="font-medium bg-light-surface dark:bg-slate-700 px-2 py-0.5 rounded">
                     {tournament.format.replace('_', ' ')}
                   </span>
                   {tournament.club && (
@@ -307,15 +307,15 @@ const TournamentList = () => {
 
               {/* Info columns */}
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-6 text-sm">
-                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <MapPin size={14} className="text-gray-400" />
                   <span className="truncate max-w-[120px]">{tournament.location}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <Calendar size={14} className="text-gray-400" />
                   <span>{formatDate(tournament.startDate)}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <Users size={14} className="text-gray-400" />
                   <span>{tournament.registrations?.length || 0}/{tournament.maxParticipants}</span>
                 </div>
@@ -343,7 +343,7 @@ const TournamentList = () => {
                       e.stopPropagation();
                       navigate(`/tournaments/${tournament.id}/edit`);
                     }}
-                    className="p-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                    className="p-1.5 rounded-full bg-teal-100 dark:bg-blue-900/30 text-teal-600 dark:text-blue-400 hover:bg-teal-200 dark:hover:bg-blue-900/50 transition-colors"
                     title="Edit tournament"
                   >
                     <Pencil size={14} />
@@ -383,7 +383,7 @@ const TournamentList = () => {
           <>
             {/* Active Tournaments */}
             {activeTournaments.length === 0 && completedTournaments.length === 0 ? (
-              <p className="text-center py-16 text-gray-500 dark:text-gray-400 text-lg font-medium">
+              <p className="text-center py-16 text-light-text-muted dark:text-gray-400 text-lg font-medium">
                 No tournaments found
               </p>
             ) : activeTournaments.length === 0 ? (
@@ -401,7 +401,7 @@ const TournamentList = () => {
                   onClick={() => setShowCompleted(!showCompleted)}
                   className="w-full glass-card p-4 flex items-center justify-between hover:scale-[1.01] transition-transform"
                 >
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                  <h2 className="text-lg sm:text-xl font-bold text-light-text-muted dark:text-gray-300 flex items-center gap-3">
                     <span className="text-brand-green">✓</span>
                     Completed Tournaments ({completedTournaments.length})
                   </h2>

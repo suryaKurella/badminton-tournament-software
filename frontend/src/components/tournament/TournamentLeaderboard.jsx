@@ -94,35 +94,35 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-gray-50 dark:bg-gray-800 border-b-2 border-gray-200 dark:border-gray-700">
+        <thead className="bg-light-surface dark:bg-gray-800 border-b-2 border-light-border dark:border-gray-700">
           <tr>
-            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Rank
             </th>
-            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               {isTeamLeaderboard ? 'Team' : 'Player'}
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
               Matches
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
               W-L
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
               Points
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
               Game Diff
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
               Pt. Diff
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
               Win Rate
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody className="bg-white/50 dark:bg-gray-900 divide-y divide-light-border dark:divide-gray-700">
           {entries.map((entry, index) => {
             const rank = index + 1;
             const winRate = entry.totalMatches > 0
@@ -132,7 +132,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
             return (
               <tr
                 key={entry.teamKey || entry.playerId || index}
-                className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="hover:bg-light-surface dark:hover:bg-gray-800 transition-colors"
               >
                 {/* Rank */}
                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -142,7 +142,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                         {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
                       </span>
                     ) : (
-                      <span className="text-lg font-bold text-gray-500 dark:text-gray-400">#{rank}</span>
+                      <span className="text-lg font-bold text-light-text-muted dark:text-gray-400">#{rank}</span>
                     )}
                   </div>
                 </td>
@@ -151,20 +151,20 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                 <td className="px-4 sm:px-6 py-4">
                   {isTeamLeaderboard ? (
                     <div className="flex flex-col">
-                      <span className="font-semibold text-gray-900 dark:text-white">
+                      <span className="font-semibold text-light-text-primary dark:text-white">
                         {entry.player1?.fullName || entry.player1?.username || 'Unknown'}
                       </span>
-                      <span className="font-semibold text-gray-900 dark:text-white">
+                      <span className="font-semibold text-light-text-primary dark:text-white">
                         {entry.player2?.fullName || entry.player2?.username || 'Unknown'}
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
+                      <div className="w-10 h-10 rounded-full bg-teal-600 dark:bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
                         {getPlayerInitial(entry)}
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900 dark:text-white">
+                        <div className="font-semibold text-light-text-primary dark:text-white">
                           {getPlayerName(entry)}
                         </div>
                       </div>
@@ -206,8 +206,8 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                 {/* Win Rate */}
                 <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
                   <div className="flex flex-col items-center gap-1">
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{winRate}%</span>
-                    <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <span className="text-sm font-semibold text-light-text-primary dark:text-white">{winRate}%</span>
+                    <div className="w-16 h-2 bg-light-border dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 rounded-full transition-all"
                         style={{ width: `${winRate}%` }}
