@@ -92,32 +92,32 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <table className="min-w-[700px] w-full">
         <thead className="bg-light-surface dark:bg-gray-800 border-b-2 border-light-border dark:border-gray-700">
           <tr>
-            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Rank
             </th>
-            <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               {isTeamLeaderboard ? 'Team' : 'Player'}
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Matches
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               W-L
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Points
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Game Diff
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Pt. Diff
             </th>
-            <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <th className="px-4 py-3 text-center text-xs font-semibold text-light-text-muted dark:text-gray-300 uppercase tracking-wider">
               Win Rate
             </th>
           </tr>
@@ -135,7 +135,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                 className="hover:bg-light-surface dark:hover:bg-gray-800 transition-colors"
               >
                 {/* Rank */}
-                <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     {rank <= 3 ? (
                       <span className="text-2xl">
@@ -148,7 +148,7 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                 </td>
 
                 {/* Team/Player Name */}
-                <td className="px-4 sm:px-6 py-4">
+                <td className="px-4 py-4 whitespace-nowrap">
                   {isTeamLeaderboard ? (
                     <div className="flex flex-col">
                       <span className="font-semibold text-light-text-primary dark:text-white">
@@ -173,38 +173,38 @@ const TournamentLeaderboard = ({ tournamentId, matches }) => {
                 </td>
 
                 {/* Matches */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden sm:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <span className="text-gray-900 dark:text-white font-semibold">{entry.totalMatches || 0}</span>
                 </td>
 
                 {/* W-L */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <span className="text-green-600 dark:text-green-400 font-semibold">{entry.matchesWon || 0}</span>
                   <span className="text-gray-500 mx-1">-</span>
                   <span className="text-red-600 dark:text-red-400 font-semibold">{entry.matchesLost || 0}</span>
                 </td>
 
                 {/* Points */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <span className="text-gray-900 dark:text-white font-semibold">{entry.pointsScored || 0}</span>
                 </td>
 
                 {/* Game Diff */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <span className={`font-semibold ${(entry.gameDiff || 0) > 0 ? 'text-green-600 dark:text-green-400' : (entry.gameDiff || 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
                     {(entry.gameDiff || 0) > 0 ? '+' : ''}{entry.gameDiff || 0}
                   </span>
                 </td>
 
                 {/* Point Diff */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <span className={`font-semibold ${(entry.pointDiff || 0) > 0 ? 'text-green-600 dark:text-green-400' : (entry.pointDiff || 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
                     {(entry.pointDiff || 0) > 0 ? '+' : ''}{entry.pointDiff || 0}
                   </span>
                 </td>
 
                 {/* Win Rate */}
-                <td className="px-4 sm:px-6 py-4 text-center whitespace-nowrap hidden md:table-cell">
+                <td className="px-4 py-4 text-center whitespace-nowrap">
                   <div className="flex flex-col items-center gap-1">
                     <span className="text-sm font-semibold text-light-text-primary dark:text-white">{winRate}%</span>
                     <div className="w-16 h-2 bg-light-border dark:bg-gray-700 rounded-full overflow-hidden">
