@@ -2759,7 +2759,15 @@ const TournamentDetails = () => {
                     {match.matchStatus === 'COMPLETED' && match.winnerId && (
                       <div className="text-center sm:col-span-3 pb-3 border-b border-gray-200 dark:border-slate-600">
                         <span className="text-xs text-light-text-muted dark:text-gray-400 uppercase tracking-wide">Winner</span>
-                        <p className="text-lg font-bold text-brand-green mt-1">{winnerName}</p>
+                        <p className="text-lg font-bold text-brand-green mt-1">
+                          {isDoubles && winnerName.includes(' & ') ? (
+                            <span className="inline-flex items-center gap-2">
+                              <span>{winnerName.split(' & ')[0].trim()}</span>
+                              <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
+                              <span>{winnerName.split(' & ')[1].trim()}</span>
+                            </span>
+                          ) : winnerName}
+                        </p>
                       </div>
                     )}
 
@@ -2792,7 +2800,15 @@ const TournamentDetails = () => {
 
                     {/* Match Info */}
                     <div className="text-center">
-                      <span className="text-xs text-light-text-muted dark:text-gray-400 uppercase tracking-wide">{team1Name}</span>
+                      <span className="text-xs text-light-text-muted dark:text-gray-400 uppercase tracking-wide">
+                        {isDoubles && team1Name.includes(' & ') ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span>{team1Name.split(' & ')[0].trim()}</span>
+                            <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
+                            <span>{team1Name.split(' & ')[1].trim()}</span>
+                          </span>
+                        ) : team1Name}
+                      </span>
                       <p className="font-mono font-bold text-lg text-light-text-primary dark:text-white mt-1">
                         {team1Games.reduce((a, b) => a + b, 0) || 0}
                       </p>
@@ -2805,7 +2821,15 @@ const TournamentDetails = () => {
                     </div>
 
                     <div className="text-center">
-                      <span className="text-xs text-light-text-muted dark:text-gray-400 uppercase tracking-wide">{team2Name}</span>
+                      <span className="text-xs text-light-text-muted dark:text-gray-400 uppercase tracking-wide">
+                        {isDoubles && team2Name.includes(' & ') ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span>{team2Name.split(' & ')[0].trim()}</span>
+                            <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
+                            <span>{team2Name.split(' & ')[1].trim()}</span>
+                          </span>
+                        ) : team2Name}
+                      </span>
                       <p className="font-mono font-bold text-lg text-light-text-primary dark:text-white mt-1">
                         {team2Games.reduce((a, b) => a + b, 0) || 0}
                       </p>

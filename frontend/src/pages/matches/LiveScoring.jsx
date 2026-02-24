@@ -274,6 +274,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game1: { ...manualScores.game1, team1: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
@@ -289,6 +290,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game1: { ...manualScores.game1, team2: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
@@ -311,6 +313,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game2: { ...manualScores.game2, team1: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
@@ -326,6 +329,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game2: { ...manualScores.game2, team2: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
@@ -348,6 +352,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game3: { ...manualScores.game3, team1: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
@@ -363,6 +368,7 @@ const LiveScoring = () => {
                     ...manualScores,
                     game3: { ...manualScores.game3, team2: e.target.value }
                   })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                   className="w-full px-4 py-3 glass-surface rounded-lg border border-border focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 transition-colors text-center text-2xl font-bold"
                 />
