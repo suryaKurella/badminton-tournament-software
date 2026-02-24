@@ -2688,27 +2688,27 @@ const TournamentDetails = () => {
                 <div className={`${isDoubles ? 'flex flex-col items-center gap-2 sm:flex-row sm:items-end sm:justify-center sm:gap-4' : 'flex items-end justify-center gap-2 sm:gap-4'} text-sm sm:text-base`}>
                   {/* TEAM 1 */}
                   <div className={`${isDoubles ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'} flex ${isDoubles ? 'justify-center sm:justify-end' : 'justify-end'} font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team1Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
-                    <div className="inline-flex flex-col items-center">
-                      {match.matchStatus === 'COMPLETED' && match.winnerId ? (
-                        match.winnerId === match.team1Id
-                          ? <span className="text-xs font-bold text-brand-green mb-0.5">W</span>
-                          : <span className={`text-xs font-bold invisible mb-0.5 ${isDoubles ? 'hidden sm:inline' : ''}`}>W</span>
-                      ) : null}
+                    <div className="inline-flex items-center gap-1.5">
+                      {match.matchStatus === 'COMPLETED' && match.winnerId === match.team1Id && (
+                        <span className="text-base" title="Winner">👑</span>
+                      )}
+                      {canManageStatus && match.matchStatus === 'UPCOMING' && match.team1 && isDoubles && team1Name.includes(' & ') && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditTeamModal({
+                            isOpen: true, teamId: match.team1.id, matchId: match.id,
+                            player1Id: match.team1.player1?.id || '', player2Id: match.team1.player2?.id || '', loading: false,
+                          }); }}
+                          className="p-1 text-teal-500 hover:bg-teal-500/10 dark:text-blue-500 dark:hover:bg-blue-500/10 rounded transition-colors"
+                          title="Edit team"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
                       {isDoubles && team1Name.includes(' & ') ? (
-                        <div className="inline-flex items-center gap-1">
-                          {canManageStatus && match.matchStatus === 'UPCOMING' && match.team1 && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditTeamModal({
-                                isOpen: true, teamId: match.team1.id, matchId: match.id,
-                                player1Id: match.team1.player1?.id || '', player2Id: match.team1.player2?.id || '', loading: false,
-                              }); }}
-                              className="p-1 text-teal-500 hover:bg-teal-500/10 dark:text-blue-500 dark:hover:bg-blue-500/10 rounded transition-colors"
-                              title="Edit team"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                          )}
-                          <span className="font-medium">{team1Name.split(' & ')[0].trim()} <span className="text-emerald-500 dark:text-emerald-400 mx-1">|</span> {team1Name.split(' & ')[1].trim()}</span>
+                        <div className="inline-flex items-center gap-2">
+                          <span className="font-medium text-right">{team1Name.split(' & ')[0].trim()}</span>
+                          <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
+                          <span className="font-medium">{team1Name.split(' & ')[1].trim()}</span>
                         </div>
                       ) : (
                         <span className="block sm:inline">{team1Name}</span>
@@ -2716,35 +2716,32 @@ const TournamentDetails = () => {
                     </div>
                   </div>
                   {/* VS DIVIDER */}
-                  <div className="flex flex-col items-center shrink-0">
-                    {!isDoubles && match.matchStatus === 'COMPLETED' && match.winnerId && (
-                      <span className="text-xs font-bold invisible mb-0.5">W</span>
-                    )}
+                  <div className="flex items-center shrink-0">
                     <div className="px-4 py-1.5 bg-teal-100 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-teal-700 dark:text-white">VS</div>
                   </div>
                   {/* TEAM 2 */}
                   <div className={`${isDoubles ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'} flex ${isDoubles ? 'justify-center sm:justify-start' : 'justify-start'} font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
-                    <div className="inline-flex flex-col items-center">
-                      {match.matchStatus === 'COMPLETED' && match.winnerId ? (
-                        match.winnerId === match.team2Id
-                          ? <span className="text-xs font-bold text-brand-green mb-0.5">W</span>
-                          : <span className={`text-xs font-bold invisible mb-0.5 ${isDoubles ? 'hidden sm:inline' : ''}`}>W</span>
-                      ) : null}
+                    <div className="inline-flex items-center gap-1.5">
+                      {match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id && (
+                        <span className="text-base" title="Winner">👑</span>
+                      )}
+                      {canManageStatus && match.matchStatus === 'UPCOMING' && match.team2 && isDoubles && team2Name.includes(' & ') && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditTeamModal({
+                            isOpen: true, teamId: match.team2.id, matchId: match.id,
+                            player1Id: match.team2.player1?.id || '', player2Id: match.team2.player2?.id || '', loading: false,
+                          }); }}
+                          className="p-1 text-teal-500 hover:bg-teal-500/10 dark:text-blue-500 dark:hover:bg-blue-500/10 rounded transition-colors"
+                          title="Edit team"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
                       {isDoubles && team2Name.includes(' & ') ? (
-                        <div className="inline-flex items-center gap-1">
-                          {canManageStatus && match.matchStatus === 'UPCOMING' && match.team2 && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditTeamModal({
-                                isOpen: true, teamId: match.team2.id, matchId: match.id,
-                                player1Id: match.team2.player1?.id || '', player2Id: match.team2.player2?.id || '', loading: false,
-                              }); }}
-                              className="p-1 text-teal-500 hover:bg-teal-500/10 dark:text-blue-500 dark:hover:bg-blue-500/10 rounded transition-colors"
-                              title="Edit team"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                          )}
-                          <span className="font-medium">{team2Name.split(' & ')[0].trim()} <span className="text-emerald-500 dark:text-emerald-400 mx-1">|</span> {team2Name.split(' & ')[1].trim()}</span>
+                        <div className="inline-flex items-center gap-2">
+                          <span className="font-medium text-right">{team2Name.split(' & ')[0].trim()}</span>
+                          <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
+                          <span className="font-medium">{team2Name.split(' & ')[1].trim()}</span>
                         </div>
                       ) : (
                         <span className="block sm:inline">{team2Name}</span>
