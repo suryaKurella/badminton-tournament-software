@@ -1710,6 +1710,7 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
   }
 
   let knockoutParticipants;
+  let sortedTeams = [];
 
   if (tournament.partnerMode === 'ROTATING') {
     // For ROTATING mode: use individual player rankings, then pair top players into new teams
@@ -1789,7 +1790,7 @@ async function generateKnockoutFromRoundRobin(tournamentId, advancePlayers = 4) 
       }
     });
 
-    const sortedTeams = Object.values(teamStats).sort((a, b) => {
+    sortedTeams = Object.values(teamStats).sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
       const aDiff = a.pointsFor - a.pointsAgainst;
