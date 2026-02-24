@@ -32,9 +32,9 @@ const Navbar = () => {
             className="flex items-center gap-2 text-lg sm:text-xl font-bold text-teal-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 min-w-max"
             onClick={closeMobileMenu}
           >
-            <span className="text-2xl">🏸</span>
-            <span className="hidden sm:inline">Poola Kundi Tournament Software</span>
-            <span className="sm:hidden">Poola Kundi</span>
+            <img src="/logo-navbar.png" alt="Smash Panda" className="w-8 h-8 rounded-lg" />
+            <span className="hidden sm:inline">Smash Panda</span>
+            <span className="sm:hidden">Smash Panda</span>
           </Link>
 
           {/* Desktop Navigation */}

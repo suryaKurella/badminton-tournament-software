@@ -110,6 +110,7 @@ export const tournamentAPI = {
   approveAllPendingRegistrations: (tournamentId) => api.put(`/tournaments/${tournamentId}/registrations/approve-all`),
   rejectRegistration: (tournamentId, registrationId) => api.put(`/tournaments/${tournamentId}/registrations/${registrationId}/reject`),
   unregisterParticipant: (tournamentId, registrationId) => api.delete(`/tournaments/${tournamentId}/registrations/${registrationId}`),
+  unregisterAll: (tournamentId) => api.delete(`/tournaments/${tournamentId}/registrations`),
   togglePause: (id) => api.put(`/tournaments/${id}/toggle-pause`),
   toggleRegistration: (id) => api.put(`/tournaments/${id}/toggle-registration`),
   generateDraws: (id) => api.post(`/tournaments/${id}/generate-draws`),

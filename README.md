@@ -1,4 +1,4 @@
-# Poola Kundi Tournament Software
+# Smash Panda
 
 A full-featured badminton tournament management system with real-time scoring, bracket generation, and player statistics.
 
@@ -35,7 +35,7 @@ This app can be installed on your device for a native app-like experience.
 ### Desktop (Chrome/Edge)
 1. Visit the website
 2. Click the install icon (⊕) in the address bar
-3. Or use menu → "Install Poola Kundi..."
+3. Or use menu → "Install Smash Panda..."
 
 ### Features when installed:
 - Runs in standalone mode (no browser UI)

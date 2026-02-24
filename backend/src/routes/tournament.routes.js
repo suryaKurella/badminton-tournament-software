@@ -37,6 +37,7 @@ const {
   createCustomMatch,
   updatePlayoffTeam,
   toggleRoundVisibility,
+  unregisterAll,
 } = require('../controllers/tournament.controller');
 const { protect, authorize, optionalAuth } = require('../middleware/supabaseAuth.middleware');
 const { requireFlag } = require('../middleware/featureFlag.middleware');
@@ -86,5 +87,6 @@ router.post('/:id/generate-round-robin', protect, authorize('ROOT', 'ADMIN', 'OR
 router.post('/:id/create-custom-match', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), createCustomMatch);
 router.put('/:id/playoff-teams/:teamId', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), updatePlayoffTeam);
 router.put('/:id/toggle-round-visibility', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), toggleRoundVisibility);
+router.delete('/:id/registrations', protect, authorize('ROOT', 'ADMIN'), unregisterAll);
 
 module.exports = router;

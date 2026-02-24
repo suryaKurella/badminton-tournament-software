@@ -8,10 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon-32.png', 'apple-touch-icon.png', 'logo-navbar.png'],
       manifest: {
-        name: 'Poola Kundi Tournament Software',
-        short_name: 'Poola Kundi',
+        name: 'Smash Panda - Badminton Tournament Manager',
+        short_name: 'Smash Panda',
         description: 'Badminton tournament management with live scoring and brackets',
         theme_color: '#3b82f6',
         background_color: '#0f172a',

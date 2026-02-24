@@ -3821,6 +3821,44 @@ const toggleRoundVisibility = async (req, res) => {
   }
 };
 
+// Unregister all participants from a tournament (dev/admin tool)
+const unregisterAll = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    if (tournament.status === 'ACTIVE') {
+      return res.status(400).json({ success: false, message: 'Cannot unregister all from an active tournament' });
+    }
+
+    const deleted = await prisma.registration.deleteMany({
+      where: { tournamentId: id },
+    });
+
+    // Also delete teams if any
+    await prisma.team.deleteMany({
+      where: { tournamentId: id },
+    });
+
+    res.json({
+      success: true,
+      message: `Unregistered ${deleted.count} participant(s)`,
+      data: { count: deleted.count },
+    });
+  } catch (error) {
+    console.error('Unregister all error:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Error unregistering all' });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getTournament,
@@ -3859,4 +3897,5 @@ module.exports = {
   createCustomMatch,
   updatePlayoffTeam,
   toggleRoundVisibility,
+  unregisterAll,
 };

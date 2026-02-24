@@ -480,6 +480,30 @@ const TournamentDetails = () => {
     });
   };
 
+  const handleUnregisterAll = () => {
+    const count = tournament.registrations?.length || 0;
+    if (count === 0) {
+      toast.info('No registrations to remove');
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Unregister All Participants?',
+      message: `This will remove all ${count} registration${count !== 1 ? 's' : ''} and any teams from this tournament. This cannot be undone.`,
+      confirmText: 'Unregister All',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await tournamentAPI.unregisterAll(id);
+          toast.success(response.data.message);
+          fetchTournamentDetails();
+        } catch (error) {
+          toast.error(error.response?.data?.message || 'Failed to unregister all');
+        }
+      },
+    });
+  };
+
   const handleTogglePause = async () => {
     setUpdatingStatus(true);
     try {
@@ -1418,6 +1442,15 @@ const TournamentDetails = () => {
                 >
                   <span>✓</span>
                   Approve All ({tournament.registrations.filter(reg => reg.registrationStatus === 'PENDING' || reg.registrationStatus === 'REJECTED').length})
+                </button>
+              )}
+              {canManageStatus && tournament.registrations.length > 0 && tournament.status !== 'ACTIVE' && (
+                <button
+                  onClick={handleUnregisterAll}
+                  className="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 hover:border-red-500 rounded-lg font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  <span>✕</span>
+                  Unregister All
                 </button>
               )}
             </div>
