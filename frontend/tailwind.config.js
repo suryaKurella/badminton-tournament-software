@@ -6,6 +6,9 @@ export default {
   ],
   darkMode: 'class',
   theme: {
+    fontFamily: {
+      sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+    },
     extend: {
       colors: {
         // Brand Colors
