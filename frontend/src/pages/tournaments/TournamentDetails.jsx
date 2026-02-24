@@ -2650,13 +2650,15 @@ const TournamentDetails = () => {
                     </svg>
                   </div>
                 </div>
-                <div className="flex items-end justify-center gap-2 sm:gap-4 text-sm sm:text-base">
-                  <div className={`flex-1 flex justify-end font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team1Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
+                {/* Match teams layout - stacks vertically on mobile for doubles */}
+                <div className={`${isDoubles ? 'flex flex-col items-center gap-2 sm:flex-row sm:items-end sm:justify-center sm:gap-4' : 'flex items-end justify-center gap-2 sm:gap-4'} text-sm sm:text-base`}>
+                  {/* TEAM 1 */}
+                  <div className={`${isDoubles ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'} flex ${isDoubles ? 'justify-center sm:justify-end' : 'justify-end'} font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team1Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
                     <div className="inline-flex flex-col items-center">
                       {match.matchStatus === 'COMPLETED' && match.winnerId ? (
                         match.winnerId === match.team1Id
                           ? <span className="text-xs font-bold text-brand-green mb-0.5">W</span>
-                          : <span className="text-xs font-bold invisible mb-0.5">W</span>
+                          : <span className={`text-xs font-bold invisible mb-0.5 ${isDoubles ? 'hidden sm:inline' : ''}`}>W</span>
                       ) : null}
                       {isDoubles && team1Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-1">
@@ -2683,18 +2685,20 @@ const TournamentDetails = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-center">
-                    {match.matchStatus === 'COMPLETED' && match.winnerId && (
+                  {/* VS DIVIDER */}
+                  <div className="flex flex-col items-center shrink-0">
+                    {!isDoubles && match.matchStatus === 'COMPLETED' && match.winnerId && (
                       <span className="text-xs font-bold invisible mb-0.5">W</span>
                     )}
-                    <div className="px-2 sm:px-4 py-1.5 bg-gray-200 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-light-text-primary dark:text-white">VS</div>
+                    <div className="px-4 py-1.5 bg-gray-200 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-light-text-primary dark:text-white">VS</div>
                   </div>
-                  <div className={`flex-1 flex justify-start font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
+                  {/* TEAM 2 */}
+                  <div className={`${isDoubles ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'} flex ${isDoubles ? 'justify-center sm:justify-start' : 'justify-start'} font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
                     <div className="inline-flex flex-col items-center">
                       {match.matchStatus === 'COMPLETED' && match.winnerId ? (
                         match.winnerId === match.team2Id
                           ? <span className="text-xs font-bold text-brand-green mb-0.5">W</span>
-                          : <span className="text-xs font-bold invisible mb-0.5">W</span>
+                          : <span className={`text-xs font-bold invisible mb-0.5 ${isDoubles ? 'hidden sm:inline' : ''}`}>W</span>
                       ) : null}
                       {isDoubles && team2Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-1">
