@@ -551,6 +551,7 @@ const TournamentDetails = () => {
       await tournamentAPI.updatePlayoffTeam(id, editTeamModal.teamId, {
         player1Id: editTeamModal.player1Id,
         player2Id: editTeamModal.player2Id,
+        matchId: editTeamModal.matchId,
       });
       toast.success('Team updated successfully');
       setEditTeamModal({ isOpen: false, teamId: '', matchId: '', player1Id: '', player2Id: '', loading: false });
@@ -2695,11 +2696,6 @@ const TournamentDetails = () => {
                       ) : null}
                       {isDoubles && team1Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-1">
-                          <div className="inline-flex items-center border border-teal-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team1Name.split(' & ')[0].trim()}</span>
-                            <span className="border-l border-teal-200 dark:border-gray-600 self-stretch"></span>
-                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team1Name.split(' & ')[1].trim()}</span>
-                          </div>
                           {canManageStatus && match.matchStatus === 'UPCOMING' && match.team1 && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditTeamModal({
@@ -2712,6 +2708,7 @@ const TournamentDetails = () => {
                               <Pencil size={14} />
                             </button>
                           )}
+                          <span className="font-medium">{team1Name.split(' & ')[0].trim()} <span className="text-emerald-500 dark:text-emerald-400 mx-1">|</span> {team1Name.split(' & ')[1].trim()}</span>
                         </div>
                       ) : (
                         <span className="block sm:inline">{team1Name}</span>
@@ -2747,11 +2744,7 @@ const TournamentDetails = () => {
                               <Pencil size={14} />
                             </button>
                           )}
-                          <div className="inline-flex items-center border border-teal-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team2Name.split(' & ')[0].trim()}</span>
-                            <span className="border-l border-teal-200 dark:border-gray-600 self-stretch"></span>
-                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team2Name.split(' & ')[1].trim()}</span>
-                          </div>
+                          <span className="font-medium">{team2Name.split(' & ')[0].trim()} <span className="text-emerald-500 dark:text-emerald-400 mx-1">|</span> {team2Name.split(' & ')[1].trim()}</span>
                         </div>
                       ) : (
                         <span className="block sm:inline">{team2Name}</span>

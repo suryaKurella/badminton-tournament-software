@@ -96,6 +96,14 @@ const TournamentList = () => {
     });
   };
 
+  const formatTime = (date) => {
+    return new Date(date).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   if (authLoading || loading) {
     return <LoadingSpinner message="Loading tournaments..." />;
   }
@@ -207,7 +215,7 @@ const TournamentList = () => {
               </div>
               <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">📅</span>
-                <span>{formatDate(tournament.startDate)}</span>
+                <span>{formatDate(tournament.startDate)} at {formatTime(tournament.startDate)}</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">👥</span>
@@ -313,7 +321,7 @@ const TournamentList = () => {
                 </div>
                 <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <Calendar size={14} className="text-gray-400" />
-                  <span>{formatDate(tournament.startDate)}</span>
+                  <span>{formatDate(tournament.startDate)} at {formatTime(tournament.startDate)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <Users size={14} className="text-gray-400" />

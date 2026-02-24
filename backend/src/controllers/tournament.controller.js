@@ -3705,16 +3705,25 @@ const updatePlayoffTeam = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Team not found in this tournament' });
     }
 
-    // Verify the team is used in an UPCOMING match (can't edit teams in started/completed matches)
-    const matchWithTeam = await prisma.match.findFirst({
-      where: {
-        tournamentId: id,
-        OR: [{ team1Id: teamId }, { team2Id: teamId }],
-      },
-    });
-
-    if (matchWithTeam && matchWithTeam.matchStatus !== 'UPCOMING') {
-      return res.status(400).json({ success: false, message: 'Cannot edit team — match has already started or completed' });
+    // If a specific matchId is provided, only check that match's status
+    // Otherwise check all matches for this team
+    const { matchId } = req.body;
+    if (matchId) {
+      const match = await prisma.match.findUnique({ where: { id: matchId } });
+      if (match && match.matchStatus !== 'UPCOMING') {
+        return res.status(400).json({ success: false, message: 'Cannot edit team — match has already started or completed' });
+      }
+    } else {
+      const nonUpcomingMatch = await prisma.match.findFirst({
+        where: {
+          tournamentId: id,
+          OR: [{ team1Id: teamId }, { team2Id: teamId }],
+          matchStatus: { not: 'UPCOMING' },
+        },
+      });
+      if (nonUpcomingMatch) {
+        return res.status(400).json({ success: false, message: 'Cannot edit team — match has already started or completed' });
+      }
     }
 
     // Verify both players are registered in the tournament
