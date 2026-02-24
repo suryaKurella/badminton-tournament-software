@@ -385,8 +385,8 @@ async function generateRotatingPartnerRR(tournamentId, participants, seedingMeth
     }
 
     const pairs = [];
-    for (let i = 0; i < n; i += 2) {
-      pairs.push([roundPlayers[i], roundPlayers[i + 1]]);
+    for (let i = 0; i < n / 2; i++) {
+      pairs.push([roundPlayers[i], roundPlayers[n - 1 - i]]);
     }
 
     let activePairs;
