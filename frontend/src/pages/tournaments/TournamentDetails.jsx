@@ -1471,7 +1471,7 @@ const TournamentDetails = () => {
                     {isDoublesFormat && partnerName ? (
                       /* Doubles pair display with divider - both registered */
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                        <div className="flex items-center border border-teal-200 dark:border-gray-600 rounded-lg overflow-hidden">
                           <span className="font-medium text-light-text-primary dark:text-white px-3 py-1.5 bg-light-surface dark:bg-slate-700">
                             {reg.user.fullName || reg.user.username}
                           </span>
@@ -2613,10 +2613,10 @@ const TournamentDetails = () => {
           const team2Games = parseScore(match.team2Score);
 
           return (
-            <div key={match.id} className="glass-surface overflow-hidden">
+            <div key={match.id} className="bg-white border border-gray-200 shadow-sm dark:bg-slate-800/80 dark:border-slate-700 rounded-xl overflow-hidden">
               <div
                 onClick={() => setExpandedMatchId(isExpanded ? null : match.id)}
-                className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-all"
+                className="p-4 cursor-pointer hover:bg-teal-50 dark:hover:bg-slate-700/50 transition-all"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -2662,10 +2662,10 @@ const TournamentDetails = () => {
                       ) : null}
                       {isDoubles && team1Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-1">
-                          <div className="inline-flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <span className="font-medium px-3 py-1.5 bg-light-surface dark:bg-slate-700">{team1Name.split(' & ')[0].trim()}</span>
-                            <span className="border-l border-gray-300 dark:border-gray-600 self-stretch"></span>
-                            <span className="font-medium px-3 py-1.5 bg-light-surface dark:bg-slate-700">{team1Name.split(' & ')[1].trim()}</span>
+                          <div className="inline-flex items-center border border-teal-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team1Name.split(' & ')[0].trim()}</span>
+                            <span className="border-l border-teal-200 dark:border-gray-600 self-stretch"></span>
+                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team1Name.split(' & ')[1].trim()}</span>
                           </div>
                           {canManageStatus && match.matchStatus === 'UPCOMING' && match.team1 && (
                             <button
@@ -2690,7 +2690,7 @@ const TournamentDetails = () => {
                     {!isDoubles && match.matchStatus === 'COMPLETED' && match.winnerId && (
                       <span className="text-xs font-bold invisible mb-0.5">W</span>
                     )}
-                    <div className="px-4 py-1.5 bg-gray-200 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-light-text-primary dark:text-white">VS</div>
+                    <div className="px-4 py-1.5 bg-teal-100 dark:bg-slate-600 rounded font-bold text-xs sm:text-sm text-teal-700 dark:text-white">VS</div>
                   </div>
                   {/* TEAM 2 */}
                   <div className={`${isDoubles ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'} flex ${isDoubles ? 'justify-center sm:justify-start' : 'justify-start'} font-medium ${match.matchStatus === 'COMPLETED' && match.winnerId === match.team2Id ? 'text-brand-green' : 'text-light-text-primary dark:text-white'}`}>
@@ -2714,10 +2714,10 @@ const TournamentDetails = () => {
                               <Pencil size={14} />
                             </button>
                           )}
-                          <div className="inline-flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <span className="font-medium px-3 py-1.5 bg-light-surface dark:bg-slate-700">{team2Name.split(' & ')[0].trim()}</span>
-                            <span className="border-l border-gray-300 dark:border-gray-600 self-stretch"></span>
-                            <span className="font-medium px-3 py-1.5 bg-light-surface dark:bg-slate-700">{team2Name.split(' & ')[1].trim()}</span>
+                          <div className="inline-flex items-center border border-teal-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team2Name.split(' & ')[0].trim()}</span>
+                            <span className="border-l border-teal-200 dark:border-gray-600 self-stretch"></span>
+                            <span className="font-medium px-3 py-1.5 bg-teal-50 dark:bg-slate-700">{team2Name.split(' & ')[1].trim()}</span>
                           </div>
                         </div>
                       ) : (
@@ -2878,8 +2878,8 @@ const TournamentDetails = () => {
             const completedCount = groupMatches.filter((m) => m.matchStatus === 'COMPLETED').length;
             const isHidden = hiddenRounds.includes(groupKey);
             return (
-              <div key={groupKey} className={`${idx > 0 ? 'mt-6' : ''}`}>
-                <div className={`border-2 rounded-lg overflow-hidden ${isHidden ? 'border-gray-400/50 opacity-60' : 'border-brand-green'}`}>
+              <div key={groupKey} className={idx > 0 ? 'mt-6' : ''}>
+                <div className={`border-2 rounded-lg overflow-hidden ${isHidden ? 'border-gray-400/50 opacity-60' : 'border-brand-green'} bg-gray-50 dark:bg-transparent`}>
                   <div
                     onClick={() => toggleGroup(groupKey)}
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-brand-green/5 transition-colors"
@@ -2911,7 +2911,7 @@ const TournamentDetails = () => {
                     </div>
                   </div>
                   {!isCollapsed(groupKey) && (
-                    <div className={`px-4 pb-4 space-y-3 border-t ${isHidden ? 'border-gray-400/30' : 'border-brand-green/30'}`}>
+                    <div className={`p-4 space-y-3 border-t ${isHidden ? 'border-gray-400/30' : 'border-brand-green/30'}`}>
                       {groupMatches.map((match) => renderMatchCard(match))}
                     </div>
                   )}
@@ -2940,7 +2940,7 @@ const TournamentDetails = () => {
                     </button>
                   )}
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {renderMatchesGroupedByRound(activeMatches)}
                 </div>
               </div>
@@ -2968,8 +2968,8 @@ const TournamentDetails = () => {
                 </button>
 
                 {showCompletedMatches && (
-                  <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-200 dark:border-slate-600">
-                    <div className="space-y-4 mt-4">
+                  <div className="px-4 sm:px-6 py-4 sm:py-6 border-t border-gray-200 dark:border-slate-600">
+                    <div className="space-y-6">
                       {renderMatchesGroupedByRound(completedMatches)}
                     </div>
                   </div>

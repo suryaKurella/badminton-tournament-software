@@ -53,6 +53,9 @@ export default {
         'shimmer': 'shimmer 2s infinite',
         'shrink': 'shrink linear forwards',
         'indeterminate-progress': 'indeterminateProgress 1.5s ease-in-out infinite',
+        'player-bounce': 'playerBounce 1s ease-in-out infinite',
+        'shuttle-float': 'shuttleFloat 1s ease-in-out infinite',
+        'shadow-pulse': 'shadowPulse 1s ease-in-out infinite',
       },
 
       keyframes: {
@@ -84,6 +87,18 @@ export default {
           '0%': { transform: 'translateX(-100%)', width: '40%' },
           '50%': { transform: 'translateX(100%)', width: '60%' },
           '100%': { transform: 'translateX(300%)', width: '40%' },
+        },
+        playerBounce: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        shuttleFloat: {
+          '0%, 100%': { transform: 'translate(0, 0) rotate(0deg)', opacity: '1' },
+          '50%': { transform: 'translate(-3px, -5px) rotate(-10deg)', opacity: '0.7' },
+        },
+        shadowPulse: {
+          '0%, 100%': { transform: 'scaleX(1)', opacity: '0.1' },
+          '50%': { transform: 'scaleX(0.6)', opacity: '0.05' },
         },
       },
 
