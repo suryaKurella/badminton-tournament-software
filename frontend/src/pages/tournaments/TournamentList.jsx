@@ -220,7 +220,7 @@ const TournamentList = () => {
               <div className="flex items-center gap-2.5 text-sm text-light-text-primary dark:text-white">
                 <span className="text-lg">👥</span>
                 <span>
-                  {tournament.registrations?.length || 0}/{tournament.maxParticipants}
+                  {tournament.registrations?.filter(r => r.registrationStatus === 'APPROVED').length || 0}/{tournament.maxParticipants}
                 </span>
               </div>
             </div>
@@ -325,7 +325,7 @@ const TournamentList = () => {
                 </div>
                 <div className="flex items-center gap-1.5 text-light-text-muted dark:text-gray-300">
                   <Users size={14} className="text-gray-400" />
-                  <span>{tournament.registrations?.length || 0}/{tournament.maxParticipants}</span>
+                  <span>{tournament.registrations?.filter(r => r.registrationStatus === 'APPROVED').length || 0}/{tournament.maxParticipants}</span>
                 </div>
 
                 {/* Timer for active tournaments */}
