@@ -5,7 +5,7 @@ import { tournamentAPI, matchAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useFeatureFlag } from '../../context/FeatureFlagContext';
-import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button, PartnerSelect } from '../../components/common';
+import { ConfirmationModal, TournamentTimer, StatusBadge, LoadingSpinner, Button, PartnerSelect, SearchableSelect } from '../../components/common';
 import BracketView from '../../components/bracket/BracketView';
 import GroupStageView from '../../components/bracket/GroupStageView';
 import ManualGroupAssignment from '../../components/bracket/ManualGroupAssignment';
@@ -48,6 +48,7 @@ const TournamentDetails = () => {
   const [autoScoringMatchId, setAutoScoringMatchId] = useState(null);
   const [autoScoringRound, setAutoScoringRound] = useState(null);
   const [editTeamModal, setEditTeamModal] = useState({ isOpen: false, teamId: '', matchId: '', player1Id: '', player2Id: '', loading: false });
+  const [assignTeam, setAssignTeam] = useState({ matchId: null, side: null });
   const [collapsedRounds, setCollapsedRounds] = useState({});
   const [allUsers, setAllUsers] = useState([]);
   const [winnersModal, setWinnersModal] = useState({
@@ -213,7 +214,7 @@ const TournamentDetails = () => {
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
 
@@ -236,7 +237,7 @@ const TournamentDetails = () => {
 
   const handleDeregister = async () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
 
@@ -1011,19 +1012,21 @@ const TournamentDetails = () => {
   };
 
   const handleCreateManualMatch = async () => {
-    if (!createMatchData.team1Id || !createMatchData.team2Id) {
-      toast.error('Please select both teams');
+    if ((!createMatchData.team1Id || createMatchData.team1Id === 'TBD') && (!createMatchData.team2Id || createMatchData.team2Id === 'TBD')) {
+      toast.error('Please select at least one team');
       return;
     }
-    if (createMatchData.team1Id === createMatchData.team2Id) {
+    if (createMatchData.team1Id && createMatchData.team2Id && createMatchData.team1Id !== 'TBD' && createMatchData.team2Id !== 'TBD' && createMatchData.team1Id === createMatchData.team2Id) {
       toast.error('Please select two different teams');
       return;
     }
     try {
+      const team1 = createMatchData.team1Id && createMatchData.team1Id !== 'TBD' ? createMatchData.team1Id : null;
+      const team2 = createMatchData.team2Id && createMatchData.team2Id !== 'TBD' ? createMatchData.team2Id : null;
       await matchAPI.create({
         tournamentId: id,
-        team1Id: createMatchData.team1Id,
-        team2Id: createMatchData.team2Id,
+        team1Id: team1,
+        team2Id: team2,
         round: createMatchData.round || 'Custom Match',
       });
       toast.success('Match created successfully');
@@ -1031,6 +1034,17 @@ const TournamentDetails = () => {
       fetchMatches();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create match');
+    }
+  };
+
+  const handleAssignTeam = async (matchId, side, teamId) => {
+    try {
+      await matchAPI.update(matchId, { [side === 'team1' ? 'team1Id' : 'team2Id']: teamId });
+      toast.success('Team assigned successfully');
+      setAssignTeam({ matchId: null, side: null });
+      fetchMatches();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to assign team');
     }
   };
 
@@ -1054,20 +1068,17 @@ const TournamentDetails = () => {
     });
   };
 
-  const isRegistered = tournament?.registrations?.some(
+  const userRegistration = tournament?.registrations?.find(
     (reg) => reg.userId === user?.id
   );
+  const isRegistered = !!userRegistration;
+  const isRejected = userRegistration?.registrationStatus === 'REJECTED';
 
   // Check if someone has already selected the current user as their partner (for doubles)
-  // Case 1: Current user is registered and someone selected them via partnerId
-  const pendingPartnerInvite = tournament?.registrations?.find(
-    (reg) => reg.partnerId === user?.id && reg.userId !== user?.id
-  );
-  // Case 2: Current user is NOT registered but someone selected them via partnerUser
-  const pendingPartnerUserInvite = tournament?.registrations?.find(
-    (reg) => reg.partnerUser?.id === user?.id && reg.userId !== user?.id
-  );
-  const activeInvite = pendingPartnerInvite || pendingPartnerUserInvite;
+  const allPartnerInvites = tournament?.registrations?.filter(
+    (reg) => (reg.partnerId === user?.id || reg.partnerUser?.id === user?.id) && reg.userId !== user?.id
+  ) || [];
+  const activeInvite = allPartnerInvites[0];
   const invitingPlayerName = activeInvite?.user?.fullName || activeInvite?.user?.username;
 
   const isCreator = tournament?.createdById === user?.id;
@@ -1264,30 +1275,42 @@ const TournamentDetails = () => {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {/* Show partner invite if someone has already selected this user */}
-                  {activeInvite && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && tournament.partnerMode !== 'ROTATING' && (
-                    <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                      <p className="text-sm text-green-800 dark:text-green-200 mb-3">
-                        <span className="font-semibold">{invitingPlayerName}</span> has already registered and selected you as their partner.
-                      </p>
-                      <button
-                        onClick={async () => {
-                          setRegistering(true);
-                          try {
-                            await tournamentAPI.register(id, { partnerId: activeInvite.userId });
-                            toast.success('Registration successful! You are now partnered with ' + invitingPlayerName);
-                            fetchTournamentDetails();
-                          } catch (error) {
-                            toast.error(error.response?.data?.message || 'Registration failed');
-                          } finally {
-                            setRegistering(false);
-                          }
-                        }}
-                        className="w-full px-4 py-2 bg-brand-green hover:bg-green-600 text-white font-semibold rounded-lg shadow-sm transition-colors"
-                        disabled={registering}
-                      >
-                        {registering ? 'Registering...' : `Register with ${invitingPlayerName}`}
-                      </button>
+                  {/* Show partner invites if someone has already selected this user */}
+                  {allPartnerInvites.length > 0 && (tournament.tournamentType === 'DOUBLES' || tournament.tournamentType === 'MIXED') && tournament.partnerMode !== 'ROTATING' && (
+                    <div className="space-y-2">
+                      {allPartnerInvites.length > 1 && (
+                        <p className="text-sm font-medium text-light-text-muted dark:text-gray-400">
+                          {allPartnerInvites.length} players want to partner with you — choose one:
+                        </p>
+                      )}
+                      {allPartnerInvites.map((invite) => {
+                        const name = invite.user?.fullName || invite.user?.username;
+                        return (
+                          <div key={invite.id} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between gap-3">
+                            <p className="text-sm text-green-800 dark:text-green-200">
+                              <span className="font-semibold">{name}</span> {allPartnerInvites.length === 1 ? 'has registered and selected you as their partner.' : 'wants to partner with you'}
+                            </p>
+                            <button
+                              onClick={async () => {
+                                setRegistering(true);
+                                try {
+                                  await tournamentAPI.register(id, { partnerId: invite.userId });
+                                  toast.success('Registration successful! You are now partnered with ' + name);
+                                  fetchTournamentDetails();
+                                } catch (error) {
+                                  toast.error(error.response?.data?.message || 'Registration failed');
+                                } finally {
+                                  setRegistering(false);
+                                }
+                              }}
+                              className="shrink-0 px-4 py-2 bg-brand-green hover:bg-green-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm"
+                              disabled={registering}
+                            >
+                              {registering ? '...' : `Register with ${name}`}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1315,7 +1338,17 @@ const TournamentDetails = () => {
                 </div>
               )
             )}
-            {isRegistered && (
+            {isRegistered && isRejected && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                  Your registration has been rejected by the organizer.
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                  Contact the tournament organizer for more details.
+                </p>
+              </div>
+            )}
+            {isRegistered && !isRejected && (
               <div className="flex items-center gap-3">
                 <span className="px-4 py-2 bg-brand-green/10 dark:bg-brand-green/20 text-brand-green dark:text-green-400 rounded-lg font-semibold border border-brand-green/30">
                   ✓ Registered
@@ -1784,8 +1817,22 @@ const TournamentDetails = () => {
         </div>
       )}
 
-      {/* Winners Podium - Show when final match is completed */}
-      {(() => {
+      {/* Tournament Finished banner for players/spectators */}
+      {tournament.status === 'COMPLETED' && (
+        <div className="relative overflow-hidden rounded-xl p-5 sm:p-6 mb-4 sm:mb-6 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 shadow-lg shadow-amber-500/20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.15),transparent_70%)]"></div>
+          <div className="relative flex items-center justify-center gap-3">
+            <span className="text-3xl">🏆</span>
+            <p className="font-bold text-white text-lg sm:text-xl tracking-wide">
+              Tournament Completed!
+            </p>
+            <span className="text-3xl">🏆</span>
+          </div>
+        </div>
+      )}
+
+      {/* Winners Podium - Show when final match is completed (only if no declared winners exist) */}
+      {roundRobinWinners.length === 0 && (() => {
         // Find the final match
         const finalMatch = matches.find((m) => m.round === 'Final' || m.round === 'Finals');
         if (!finalMatch || finalMatch.matchStatus !== 'COMPLETED' || !finalMatch.winnerId) {
@@ -1954,6 +2001,19 @@ const TournamentDetails = () => {
               </div>
             </div>
           </div>
+
+          {/* Edit Winners button for admins */}
+          {canManageStatus && (
+            <div className="text-center">
+              <button
+                onClick={handleDeclareWinners}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 border border-amber-500/30 rounded-lg transition-colors"
+              >
+                <Pencil size={14} />
+                Edit Winners
+              </button>
+            </div>
+          )}
         </div>
         );
       })()}
@@ -2117,21 +2177,47 @@ const TournamentDetails = () => {
                     className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
                     disabled={processingCompletion}
                   >
-                    <option value={2} disabled={(tournament.teams?.length || 0) < 2}>
-                      Top 2 (Final only){(tournament.teams?.length || 0) < 2 ? ' - Need 2+ players' : ''}
-                    </option>
-                    <option value={4} disabled={(tournament.teams?.length || 0) < 4}>
-                      Top 4 (Semi-Finals + Final){(tournament.teams?.length || 0) < 4 ? ` - Need 4+ players (have ${tournament.teams?.length || 0})` : ''}
-                    </option>
-                    <option value={8} disabled={(tournament.teams?.length || 0) < 8}>
-                      Top 8 (Quarter-Finals + Semi-Finals + Final){(tournament.teams?.length || 0) < 8 ? ` - Need 8+ players (have ${tournament.teams?.length || 0})` : ''}
-                    </option>
+                    {(() => {
+                      const isRotating = tournament.partnerMode === 'ROTATING';
+                      const playerCount = isRotating
+                        ? (tournament.registrations?.filter(r => r.registrationStatus === 'APPROVED').length || 0)
+                        : (tournament.teams?.length || 0);
+                      const needed = (n) => isRotating ? n * 2 : n;
+                      const label = isRotating ? 'players' : 'teams';
+                      return (
+                        <>
+                          <option value={2} disabled={playerCount < needed(2)}>
+                            Top 2 (Final only){playerCount < needed(2) ? ` - Need ${needed(2)}+ ${label}` : ''}
+                          </option>
+                          <option value={4} disabled={playerCount < needed(4)}>
+                            Top 4 (Semi-Finals + Final){playerCount < needed(4) ? ` - Need ${needed(4)}+ ${label} (have ${playerCount})` : ''}
+                          </option>
+                          {playerCount >= needed(6) && (
+                            <option value={6}>
+                              Top 6 (Quarter-Finals with 2 byes + Semi-Finals + Final)
+                            </option>
+                          )}
+                          {playerCount >= needed(8) && (
+                            <option value={8}>
+                              Top 8 (Quarter-Finals + Semi-Finals + Final)
+                            </option>
+                          )}
+                        </>
+                      );
+                    })()}
                   </select>
-                  {(tournament.teams?.length || 0) < 4 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      You have {tournament.teams?.length || 0} player(s). Some playoff options are unavailable.
-                    </p>
-                  )}
+                  {(() => {
+                    const isRotating = tournament.partnerMode === 'ROTATING';
+                    const playerCount = isRotating
+                      ? (tournament.registrations?.filter(r => r.registrationStatus === 'APPROVED').length || 0)
+                      : (tournament.teams?.length || 0);
+                    const needed = (n) => isRotating ? n * 2 : n;
+                    return playerCount < needed(4) ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        You have {playerCount} {isRotating ? 'players' : 'teams'}. Some playoff options are unavailable.
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
                 <Button
                   onClick={handleCreateKnockout}
@@ -2271,35 +2357,25 @@ const TournamentDetails = () => {
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 1:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team1Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team1Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team2Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team1Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team2Id ? [createMatchData.team2Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 2:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team2Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team2Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team1Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team2Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team1Id ? [createMatchData.team1Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
@@ -2316,7 +2392,7 @@ const TournamentDetails = () => {
                 </div>
                 <Button
                   onClick={handleCreateManualMatch}
-                  disabled={!createMatchData.team1Id || !createMatchData.team2Id}
+                  disabled={!createMatchData.team1Id && !createMatchData.team2Id}
                   variant="secondary"
                   className="w-full"
                 >
@@ -2324,6 +2400,28 @@ const TournamentDetails = () => {
                 </Button>
               </div>
               )}
+            </div>
+          </div>
+        )}
+
+      {/* Player-facing banner when all matches in current stage are completed */}
+      {(tournament.format === 'ROUND_ROBIN' || tournament.format === 'CUSTOM' || tournament.format === 'GROUP_KNOCKOUT') &&
+        tournament.status !== 'COMPLETED' &&
+        !canManageStatus &&
+        matches.length > 0 &&
+        matches.filter(m => !m.round?.includes('Semi') && !m.round?.includes('Final') && !m.round?.includes('3rd')).every(m => m.matchStatus === 'COMPLETED') &&
+        !tournament.groupStageComplete && (
+          <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⏳</span>
+              <div>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  All matches in this stage are completed!
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                  Please wait for the organizer to start the next stage.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -2377,35 +2475,25 @@ const TournamentDetails = () => {
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 1:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team1Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team1Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team2Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team1Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team2Id ? [createMatchData.team2Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 2:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team2Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team2Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team1Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team2Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team1Id ? [createMatchData.team1Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
@@ -2422,7 +2510,7 @@ const TournamentDetails = () => {
                 </div>
                 <Button
                   onClick={handleCreateManualMatch}
-                  disabled={!createMatchData.team1Id || !createMatchData.team2Id}
+                  disabled={!createMatchData.team1Id && !createMatchData.team2Id}
                   variant="secondary"
                   className="w-full"
                 >
@@ -2476,35 +2564,25 @@ const TournamentDetails = () => {
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 1:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team1Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team1Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team2Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team1Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team2Id ? [createMatchData.team2Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
                       Team 2:
                     </label>
-                    <select
+                    <SearchableSelect
                       value={createMatchData.team2Id}
-                      onChange={(e) => setCreateMatchData(prev => ({ ...prev, team2Id: e.target.value }))}
-                      className="w-full px-3 py-2 glass-surface rounded-lg text-light-text-primary dark:text-white focus:ring-2 focus:ring-brand-blue/25"
-                    >
-                      <option value="">Select team...</option>
-                      {tournament.teams?.map(team => (
-                        <option key={team.id} value={team.id} disabled={team.id === createMatchData.team1Id}>
-                          {getTeamDisplayName(team)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCreateMatchData(prev => ({ ...prev, team2Id: val }))}
+                      options={[{ value: 'TBD', label: 'TBD' }, ...(tournament.teams?.filter(team => team.player1Id !== team.player2Id).map(team => ({ value: team.id, label: getTeamDisplayName(team) })) || [])]}
+                      placeholder="Select team..."
+                      disabledValues={createMatchData.team1Id ? [createMatchData.team1Id] : []}
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-light-text-muted dark:text-gray-300 mb-1 block">
@@ -2521,7 +2599,7 @@ const TournamentDetails = () => {
                 </div>
                 <Button
                   onClick={handleCreateManualMatch}
-                  disabled={!createMatchData.team1Id || !createMatchData.team2Id}
+                  disabled={!createMatchData.team1Id && !createMatchData.team2Id}
                   variant="secondary"
                   className="w-full"
                 >
@@ -2615,6 +2693,56 @@ const TournamentDetails = () => {
           </div>
         )}
 
+      {/* Preview banner for admins when matches not yet published */}
+      {tournament.bracketGenerated && !tournament.matchesPublished && canManageStatus && (
+        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-amber-500/50 bg-amber-50/30 dark:bg-amber-900/10">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">👁️</span>
+              <div>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  Preview Mode — Only you can see these matches
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                  Review the draws below, then publish to make them visible to all players.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  await tournamentAPI.publishMatches(id);
+                  toast.success('Matches published! Players can now see the draws.');
+                  fetchTournamentDetails();
+                } catch (error) {
+                  toast.error(error.response?.data?.message || 'Failed to publish matches');
+                }
+              }}
+              className="shrink-0 px-5 py-2.5 bg-brand-green hover:bg-green-600 text-white font-semibold rounded-lg shadow-sm transition-colors"
+            >
+              Publish Matches
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Player-facing message when matches are generated but not yet published */}
+      {tournament.bracketGenerated && !tournament.matchesPublished && !canManageStatus && (
+        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⏳</span>
+            <div>
+              <p className="font-semibold text-light-text-primary dark:text-white">
+                Matches are being prepared
+              </p>
+              <p className="text-sm text-light-text-muted dark:text-gray-400 mt-0.5">
+                The organizer is finalizing the draws. Matches will be visible soon.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {matches.length > 0 && (() => {
         // Split matches into active/upcoming and completed
         const activeMatches = matches.filter((m) => m.matchStatus !== 'COMPLETED');
@@ -2704,7 +2832,26 @@ const TournamentDetails = () => {
                           <Pencil size={14} />
                         </button>
                       )}
-                      {isDoubles && team1Name.includes(' & ') ? (
+                      {!match.team1 && canManageStatus && match.matchStatus === 'UPCOMING' ? (
+                        assignTeam.matchId === match.id && assignTeam.side === 'team1' ? (
+                          <div className="w-48" onClick={(e) => e.stopPropagation()}>
+                            <SearchableSelect
+                              value=""
+                              onChange={(val) => { if (val) handleAssignTeam(match.id, 'team1', val); }}
+                              options={tournament.teams?.filter(t => t.player1Id !== t.player2Id && t.id !== match.team2Id).map(t => ({ value: t.id, label: getTeamDisplayName(t) })) || []}
+                              placeholder="Select team..."
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAssignTeam({ matchId: match.id, side: 'team1' }); }}
+                            className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-400 font-medium underline underline-offset-2"
+                          >
+                            <Pencil size={12} />
+                            TBD
+                          </button>
+                        )
+                      ) : isDoubles && team1Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-2">
                           <span className="font-medium text-right">{team1Name.split(' & ')[0].trim()}</span>
                           <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
@@ -2737,7 +2884,26 @@ const TournamentDetails = () => {
                           <Pencil size={14} />
                         </button>
                       )}
-                      {isDoubles && team2Name.includes(' & ') ? (
+                      {!match.team2 && canManageStatus && match.matchStatus === 'UPCOMING' ? (
+                        assignTeam.matchId === match.id && assignTeam.side === 'team2' ? (
+                          <div className="w-48" onClick={(e) => e.stopPropagation()}>
+                            <SearchableSelect
+                              value=""
+                              onChange={(val) => { if (val) handleAssignTeam(match.id, 'team2', val); }}
+                              options={tournament.teams?.filter(t => t.player1Id !== t.player2Id && t.id !== match.team1Id).map(t => ({ value: t.id, label: getTeamDisplayName(t) })) || []}
+                              placeholder="Select team..."
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAssignTeam({ matchId: match.id, side: 'team2' }); }}
+                            className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-400 font-medium underline underline-offset-2"
+                          >
+                            <Pencil size={12} />
+                            TBD
+                          </button>
+                        )
+                      ) : isDoubles && team2Name.includes(' & ') ? (
                         <div className="inline-flex items-center gap-2">
                           <span className="font-medium text-right">{team2Name.split(' & ')[0].trim()}</span>
                           <span className="text-emerald-500 dark:text-emerald-400 font-light">|</span>
@@ -3387,12 +3553,16 @@ const TournamentDetails = () => {
                 >
                   <option value="">Select player...</option>
                   {allUsers
-                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id))
-                    .map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.username}
-                      </option>
-                    ))
+                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id && r.partnerId))
+                    .map(u => {
+                      const reg = tournament.registrations?.find(r => r.userId === u.id);
+                      const label = u.fullName || u.username;
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {reg ? `${label} (registered)` : label}
+                        </option>
+                      );
+                    })
                   }
                 </select>
               </div>
@@ -3408,12 +3578,16 @@ const TournamentDetails = () => {
                 >
                   <option value="">Select player...</option>
                   {allUsers
-                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id) && u.id !== addTeamModal.player1Id)
-                    .map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.username}
-                      </option>
-                    ))
+                    .filter(u => !tournament.registrations?.some(r => r.userId === u.id && r.partnerId) && u.id !== addTeamModal.player1Id)
+                    .map(u => {
+                      const reg = tournament.registrations?.find(r => r.userId === u.id);
+                      const label = u.fullName || u.username;
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {reg ? `${label} (registered)` : label}
+                        </option>
+                      );
+                    })
                   }
                 </select>
               </div>

@@ -126,13 +126,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (redirectPath = '/tournaments') => {
     try {
       setError(null);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/tournaments`,
+          redirectTo: `${window.location.origin}${redirectPath}`,
         },
       });
 

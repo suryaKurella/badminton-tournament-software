@@ -12,3 +12,4 @@ export { default as TournamentTimer } from './TournamentTimer';
 export { default as ProtectedRoute } from './ProtectedRoute';
 export { default as PartnerSelect } from './PartnerSelect';
 export { default as FeatureGate } from './FeatureGate';
+export { default as SearchableSelect } from './SearchableSelect';

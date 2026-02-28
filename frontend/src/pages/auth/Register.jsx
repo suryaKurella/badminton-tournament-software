@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Input, Button } from '../../components/common';
 
 const Register = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/tournaments';
   const { register, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -51,7 +53,7 @@ const Register = () => {
         setSuccess(result.message || 'Registration successful! Please check your email to confirm your account.');
         setLoading(false);
       } else {
-        navigate('/tournaments');
+        navigate(redirectTo);
       }
     } else {
       setError(result.error);
@@ -62,7 +64,7 @@ const Register = () => {
   const handleGoogleSignup = async () => {
     setError('');
     setGoogleLoading(true);
-    const result = await loginWithGoogle();
+    const result = await loginWithGoogle(redirectTo);
 
     if (!result.success) {
       setError(result.error);
@@ -207,7 +209,7 @@ const Register = () => {
 
         <p className="text-center mt-7 text-light-text-muted dark:text-gray-400 text-sm">
           Already have an account?{' '}
-          <Link to="/login" className="text-teal-600 dark:text-blue-400 font-semibold hover:underline">
+          <Link to={`/login${redirectTo !== '/tournaments' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`} className="text-teal-600 dark:text-blue-400 font-semibold hover:underline">
             Login here
           </Link>
         </p>

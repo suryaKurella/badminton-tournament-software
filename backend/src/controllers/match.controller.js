@@ -80,13 +80,19 @@ const getMatchesByTournament = async (req, res) => {
     const where = { tournamentId };
     if (status) where.matchStatus = status;
 
-    // Filter hidden rounds for non-organizer users
+    // Filter matches for non-organizer users
     const isOrganizer = req.user && ['ROOT', 'ADMIN', 'ORGANIZER'].includes(req.user.role);
     if (!isOrganizer) {
       const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { hiddenRounds: true },
+        select: { hiddenRounds: true, matchesPublished: true },
       });
+
+      // If matches aren't published yet, only show completed matches to non-organizers
+      if (!tournament?.matchesPublished) {
+        where.matchStatus = 'COMPLETED';
+      }
+
       const hiddenRounds = Array.isArray(tournament?.hiddenRounds) ? tournament.hiddenRounds : [];
       if (hiddenRounds.length > 0) {
         where.round = { notIn: hiddenRounds };

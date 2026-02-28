@@ -16,6 +16,7 @@ const {
   getBracket,
   generateDraws,
   regenerateBracket,
+  publishMatches,
   replaceNoShowTeam,
   resetTournament,
   getGroupStandings,
@@ -64,6 +65,7 @@ router.put('/:id/toggle-registration', protect, toggleRegistration);
 router.get('/:id/bracket', optionalAuth, getBracket);
 router.post('/:id/generate-draws', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), generateDraws);
 router.post('/:id/regenerate-bracket', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), regenerateBracket);
+router.put('/:id/publish-matches', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), publishMatches);
 router.put('/:id/matches/:matchId/replace-team', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), replaceNoShowTeam);
 router.post('/:id/reset', protect, authorize('ROOT', 'ADMIN', 'ORGANIZER'), resetTournament);
 

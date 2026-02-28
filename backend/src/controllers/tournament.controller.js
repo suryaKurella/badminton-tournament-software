@@ -1373,6 +1373,9 @@ const generateDraws = async (req, res) => {
       tournament.seedingMethod || 'RANDOM'
     );
 
+    // Invalidate leaderboard cache so stale stats don't persist
+    statisticsService.invalidateLeaderboardCache(id);
+
     // Emit socket event
     const io = req.app.get('io');
     if (io) {
@@ -1481,6 +1484,9 @@ const regenerateBracket = async (req, res) => {
       tournament.seedingMethod || 'RANDOM'
     );
 
+    // Invalidate leaderboard cache so stale stats don't persist
+    statisticsService.invalidateLeaderboardCache(id);
+
     res.status(200).json({
       success: true,
       message: 'Bracket regenerated successfully',
@@ -1492,6 +1498,47 @@ const regenerateBracket = async (req, res) => {
       success: false,
       message: 'Error regenerating bracket',
     });
+  }
+};
+
+// @desc    Publish matches (make them visible to all players)
+// @route   PUT /api/tournaments/:id/publish-matches
+// @access  Private (ADMIN, ORGANIZER)
+const publishMatches = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: { id: true, createdById: true, matchesPublished: true },
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    if (tournament.createdById !== req.user.id && req.user.role !== 'ADMIN' && req.user.role !== 'ROOT') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (tournament.matchesPublished) {
+      return res.status(400).json({ success: false, message: 'Matches are already published' });
+    }
+
+    await prisma.tournament.update({
+      where: { id },
+      data: { matchesPublished: true },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament-${id}`).emit('tournament:updated', { tournamentId: id });
+    }
+
+    res.status(200).json({ success: true, message: 'Matches published successfully' });
+  } catch (error) {
+    console.error('Publish matches error:', error.message);
+    res.status(500).json({ success: false, message: 'Error publishing matches' });
   }
 };
 
@@ -2423,10 +2470,10 @@ const roundRobinToKnockout = async (req, res) => {
     const { advancePlayers = 4 } = req.body;
 
     // Validate advancePlayers
-    if (![2, 4, 8].includes(advancePlayers)) {
+    if (![2, 4, 6, 8].includes(advancePlayers)) {
       return res.status(400).json({
         success: false,
-        message: 'advancePlayers must be 2, 4, or 8',
+        message: 'advancePlayers must be 2, 4, 6, or 8',
       });
     }
 
@@ -3280,37 +3327,52 @@ const adminRegisterTeam = async (req, res) => {
       },
     });
 
-    if (existingRegs.length > 0) {
-      const registeredNames = existingRegs.map(r => {
+    // Check if any already-registered player already has a partner (is already in a team)
+    const alreadyTeamed = existingRegs.filter(r => r.partnerId);
+    if (alreadyTeamed.length > 0) {
+      const teamedNames = alreadyTeamed.map(r => {
         const p = r.userId === player1Id ? player1 : player2;
         return p.fullName || p.username;
       });
       return res.status(400).json({
         success: false,
-        message: `${registeredNames.join(' and ')} already registered for this tournament`,
+        message: `${teamedNames.join(' and ')} already registered in a team for this tournament`,
       });
     }
 
-    // Create both registrations
+    // Update existing solo registrations to add partner, create new ones for unregistered players
+    const reg1Existing = existingRegs.find(r => r.userId === player1Id);
+    const reg2Existing = existingRegs.find(r => r.userId === player2Id);
+
     const [reg1, reg2] = await Promise.all([
-      prisma.registration.create({
-        data: {
-          userId: player1Id,
-          tournamentId: id,
-          partnerId: player2Id,
-          registrationStatus: 'APPROVED',
-          paymentStatus: 'PENDING',
-        },
-      }),
-      prisma.registration.create({
-        data: {
-          userId: player2Id,
-          tournamentId: id,
-          partnerId: player1Id,
-          registrationStatus: 'APPROVED',
-          paymentStatus: 'PENDING',
-        },
-      }),
+      reg1Existing
+        ? prisma.registration.update({
+            where: { id: reg1Existing.id },
+            data: { partnerId: player2Id, registrationStatus: 'APPROVED' },
+          })
+        : prisma.registration.create({
+            data: {
+              userId: player1Id,
+              tournamentId: id,
+              partnerId: player2Id,
+              registrationStatus: 'APPROVED',
+              paymentStatus: 'PENDING',
+            },
+          }),
+      reg2Existing
+        ? prisma.registration.update({
+            where: { id: reg2Existing.id },
+            data: { partnerId: player1Id, registrationStatus: 'APPROVED' },
+          })
+        : prisma.registration.create({
+            data: {
+              userId: player2Id,
+              tournamentId: id,
+              partnerId: player1Id,
+              registrationStatus: 'APPROVED',
+              paymentStatus: 'PENDING',
+            },
+          }),
     ]);
 
     const player1Name = player1.fullName || player1.username;
@@ -3885,6 +3947,7 @@ module.exports = {
   getBracket,
   generateDraws,
   regenerateBracket,
+  publishMatches,
   replaceNoShowTeam,
   resetTournament,
   getGroupStandings,

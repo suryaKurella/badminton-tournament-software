@@ -1224,6 +1224,7 @@ async function generateBracket(tournamentId, format, seedingMethod = 'RANDOM') {
         data: {
           bracketGenerated: true,
           bracketGeneratedAt: new Date(),
+          matchesPublished: false,
         },
       });
 
@@ -1939,7 +1940,7 @@ async function completeRoundRobinToKnockout(tournamentId, advancePlayers = 4) {
       // Mark that knockout stage has started (reuse groupStageComplete flag)
       await tx.tournament.update({
         where: { id: tournamentId },
-        data: { groupStageComplete: true },
+        data: { groupStageComplete: true, matchesPublished: false },
       });
 
       // Create knockout bracket nodes

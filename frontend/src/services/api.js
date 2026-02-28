@@ -115,6 +115,7 @@ export const tournamentAPI = {
   toggleRegistration: (id) => api.put(`/tournaments/${id}/toggle-registration`),
   generateDraws: (id) => api.post(`/tournaments/${id}/generate-draws`),
   regenerateBracket: (id) => api.post(`/tournaments/${id}/regenerate-bracket`),
+  publishMatches: (id) => api.put(`/tournaments/${id}/publish-matches`),
   replaceTeam: (tournamentId, matchId, data) => api.put(`/tournaments/${tournamentId}/matches/${matchId}/replace-team`, data),
   reset: (id) => api.post(`/tournaments/${id}/reset`),
   // Group stage endpoints

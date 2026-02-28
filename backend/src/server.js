@@ -32,10 +32,19 @@ const app = express();
 // Create HTTP server
 const httpServer = createServer(app);
 
+// Allowed origins for CORS
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://www.smashpanda.net',
+  'https://smashpanda.net',
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
 // Initialize Socket.io
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -55,7 +64,7 @@ app.use(compression());
 // CORS - MUST come before rate limiting so rate limit responses have CORS headers
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

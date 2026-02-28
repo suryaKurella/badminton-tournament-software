@@ -78,6 +78,9 @@ model Tournament {
   // Round visibility (admin can hide rounds from players)
   hiddenRounds       Json               @default("[]") @map("hidden_rounds")
 
+  // Match publish control (admin previews before players can see)
+  matchesPublished   Boolean            @default(true) @map("matches_published")
+
   // Registration control
   registrationClosed Boolean            @default(false) @map("registration_closed")
 
